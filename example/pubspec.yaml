@@ -1,0 +1,27 @@
+name: interactive_pdf_viewer_example
+description: Example app demonstrating the interactive_pdf_viewer package
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ">=2.17.0 <3.0.0"
+  flutter: ">=2.10.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  interactive_pdf_viewer:
+    path: ../
+  cupertino_icons: ^1.0.2
+  file_picker: ^6.1.1
+  url_launcher: ^6.2.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.1
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/sample.pdf 
