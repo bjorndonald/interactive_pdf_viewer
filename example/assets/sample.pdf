@@ -15,9 +15,20 @@ endobj
 <</Type /Font /Subtype /Type1 /BaseFont /Helvetica>>
 endobj
 6 0 obj
-<</Length 44>>
+<</Length 500>>
 stream
-BT /F1 24 Tf 100 700 Td (Sample PDF) Tj ET
+BT
+/F1 24 Tf 100 800 Td (Interactive PDF Viewer Sample) Tj
+/F1 12 Tf 0 -30 Td (This is a sample PDF document demonstrating the capabilities of the Interactive PDF Viewer package.) Tj
+0 -20 Td (The package allows users to tap on text and select sentences, making it easy to interact with PDF content.) Tj
+0 -20 Td (Features include: text selection, sentence tapping, page navigation, and support for various PDF sources.) Tj
+0 -40 Td (Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.) Tj
+0 -20 Td (Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.) Tj
+0 -20 Td (Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.) Tj
+0 -40 Td (The Interactive PDF Viewer is designed to make PDF documents more accessible and interactive.) Tj
+0 -20 Td (You can tap on any sentence to select it, and the viewer will highlight the selected text.) Tj
+0 -20 Td (This makes it perfect for educational apps, document readers, and any application that requires PDF interaction.) Tj
+ET
 endstream
 endobj
 xref
@@ -32,5 +43,5 @@ xref
 trailer
 <</Size 7 /Root 1 0 R>>
 startxref
-406
+862
 %%EOF 

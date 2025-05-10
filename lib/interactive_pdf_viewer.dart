@@ -56,6 +56,8 @@ class _InteractivePdfViewerState extends State<InteractivePdfViewer> {
   bool _isLoading = true;
   List<PDFPage>? _pdfPages;
   Map<int, List<TextBlock>> _pageTextBlocks = {};
+  Set<TextBlock?> _selectedBlocks = {}; // Track multiple selected blocks
+  bool _isMultiSelectMode = false; // Track if we're in multi-select mode
 
   @override
   void initState() {
@@ -108,7 +110,6 @@ class _InteractivePdfViewerState extends State<InteractivePdfViewer> {
         for (int i = 0; i < _pdfPages!.length; i++) {
           final page = _pdfPages![i];
           final pageText = await page.text;
-
           // Process text into blocks with position information
           _pageTextBlocks[i] = await _extractTextBlocks(page);
         }
@@ -160,9 +161,14 @@ class _InteractivePdfViewerState extends State<InteractivePdfViewer> {
   }
 
   List<String> _splitIntoSentences(String text) {
-    // Simple sentence splitting logic
-    // In a real implementation, you would use a more sophisticated approach
-    return text.split(RegExp(r'(?<=[.!?])\s+'));
+    // Split on sentence endings and newlines
+    final sentences = text.split(RegExp(r'(?<=[.!?])\s+|\n+'));
+
+    // Filter out empty sentences and trim whitespace
+    return sentences
+        .where((sentence) => sentence.trim().isNotEmpty)
+        .map((sentence) => sentence.trim())
+        .toList();
   }
 
   String _getSentenceAtPosition(int page, Offset position) {
@@ -175,6 +181,20 @@ class _InteractivePdfViewerState extends State<InteractivePdfViewer> {
     // Find the block that contains the position
     for (var block in blocks) {
       if (block.rect.contains(scaledPosition)) {
+        setState(() {
+          if (_isMultiSelectMode) {
+            // Toggle selection in multi-select mode
+            if (_selectedBlocks.contains(block)) {
+              _selectedBlocks.remove(block);
+            } else {
+              _selectedBlocks.add(block);
+            }
+          } else {
+            // Single select mode - replace selection
+            _selectedBlocks.clear();
+            _selectedBlocks.add(block);
+          }
+        });
         return block.text;
       }
     }
@@ -193,7 +213,25 @@ class _InteractivePdfViewerState extends State<InteractivePdfViewer> {
       }
     }
 
-    return closestBlock?.text ?? '';
+    if (closestBlock != null && minDistance < 50) {
+      // Only select if within reasonable distance
+      setState(() {
+        if (_isMultiSelectMode) {
+          // Toggle selection in multi-select mode
+          if (_selectedBlocks.contains(closestBlock)) {
+            _selectedBlocks.remove(closestBlock);
+          } else {
+            _selectedBlocks.add(closestBlock);
+          }
+        } else {
+          // Single select mode - replace selection
+          _selectedBlocks.clear();
+          _selectedBlocks.add(closestBlock);
+        }
+      });
+      return closestBlock.text;
+    }
+    return '';
   }
 
   @override
@@ -207,15 +245,40 @@ class _InteractivePdfViewerState extends State<InteractivePdfViewer> {
     }
 
     return GestureDetector(
-      onTapUp: widget.enableTextSelection
-          ? (details) {
+      onDoubleTap: () {
+        setState(() {
+          _isMultiSelectMode = !_isMultiSelectMode; // Toggle multi-select mode
+          if (!_isMultiSelectMode) {
+            _selectedBlocks
+                .clear(); // Clear selections when exiting multi-select mode
+          }
+        });
+      },
+      onTapDown: widget.enableTextSelection
+          ? (TapDownDetails details) {
               final sentence =
                   _getSentenceAtPosition(_currentPage, details.localPosition);
               if (sentence.isNotEmpty && widget.onSentenceTap != null) {
-                widget.onSentenceTap!(sentence);
+                // Combine all selected sentences
+                final selectedText =
+                    _selectedBlocks.map((block) => block?.text ?? '').join(' ');
+                widget.onSentenceTap!(selectedText);
               }
             }
           : null,
+      onTapUp: widget.enableTextSelection
+          ? (TapUpDetails details) {
+              final sentence =
+                  _getSentenceAtPosition(_currentPage, details.localPosition);
+              if (sentence.isNotEmpty && widget.onSentenceTap != null) {
+                // Combine all selected sentences
+                final selectedText =
+                    _selectedBlocks.map((block) => block?.text ?? '').join(' ');
+                widget.onSentenceTap!(selectedText);
+              }
+            }
+          : null,
+      behavior: HitTestBehavior.opaque,
       child: Stack(
         children: [
           PDFView(
@@ -224,7 +287,6 @@ class _InteractivePdfViewerState extends State<InteractivePdfViewer> {
             swipeHorizontal: true,
             autoSpacing: true,
             pageFling: true,
-            pageSnap: true,
             defaultPage: _currentPage,
             fitPolicy: widget.fitToWidth ? FitPolicy.WIDTH : FitPolicy.BOTH,
             onRender: (pages) {
@@ -240,6 +302,8 @@ class _InteractivePdfViewerState extends State<InteractivePdfViewer> {
             onPageChanged: (page, total) {
               setState(() {
                 _currentPage = page!;
+                _selectedBlocks.clear(); // Clear selections on page change
+                _isMultiSelectMode = false; // Reset multi-select mode
               });
             },
             onViewCreated: (controller) {
@@ -250,19 +314,36 @@ class _InteractivePdfViewerState extends State<InteractivePdfViewer> {
             bottom: 10,
             left: 0,
             right: 0,
-            child: Center(
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.black54,
-                  borderRadius: BorderRadius.circular(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_isMultiSelectMode)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade100,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      'Multi-select mode: Double tap to exit',
+                      style: TextStyle(color: Colors.blue),
+                    ),
+                  ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    'Page ${_currentPage + 1} of $_totalPages',
+                    style: const TextStyle(color: Colors.white),
+                  ),
                 ),
-                child: Text(
-                  'Page ${_currentPage + 1} of $_totalPages',
-                  style: const TextStyle(color: Colors.white),
-                ),
-              ),
+              ],
             ),
           ),
         ],
@@ -276,4 +357,27 @@ class TextBlock {
   final Rect rect;
 
   TextBlock({required this.text, required this.rect});
+}
+
+class MultiTextHighlightPainter extends CustomPainter {
+  final List<TextBlock> blocks;
+  final Color color;
+
+  MultiTextHighlightPainter({required this.blocks, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    for (var block in blocks) {
+      canvas.drawRect(block.rect, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(MultiTextHighlightPainter oldDelegate) {
+    return oldDelegate.blocks != blocks || oldDelegate.color != color;
+  }
 }
