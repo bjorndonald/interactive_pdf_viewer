@@ -1,294 +1,175 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:interactive_pdf_viewer/interactive_pdf_viewer.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:interactive_pdf_viewer/pdf_highlighter.dart';
-import 'package:interactive_pdf_viewer/pdf_reader.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'dart:async';
+import 'package:flutter/services.dart';
+import 'package:interactive_pdf_viewer/v2/interactive_pdf_viewer.dart';
 
 void main() {
+  // Ensure Flutter bindings are initialized for platform channels
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class MyApp extends StatefulWidget {
+  const MyApp({Key? key}) : super(key: key);
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Interactive PDF Viewer Example',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-      ),
-      home: const PDFHighlighterDemo(),
-    );
-  }
+  State<MyApp> createState() => _MyAppState();
 }
 
-// class HomePage extends StatefulWidget {
-//   const HomePage({super.key});
-
-//   @override
-//   State<HomePage> createState() => _HomePageState();
-// }
-
-// class _HomePageState extends State<HomePage> {
-//   dynamic _pdfSource;
-//   String? _selectedSentence;
-//   int? _totalPages;
-//   String? _error;
-
-//   Future<void> _pickPDF() async {
-//     try {
-//       final result = await FilePicker.platform.pickFiles(
-//         type: FileType.custom,
-//         allowedExtensions: ['pdf'],
-//       );
-
-//       if (result != null) {
-//         setState(() {
-//           _pdfSource = File(result.files.single.path!);
-//           _selectedSentence = null;
-//           _error = null;
-//         });
-//       }
-//     } catch (e) {
-//       setState(() {
-//         _error = 'Error picking file: $e';
-//       });
-//     }
-//   }
-
-//   Future<void> _loadSamplePDF() async {
-//     setState(() {
-//       _pdfSource = 'assets/sample.pdf';
-//       _selectedSentence = null;
-//       _error = null;
-//     });
-//   }
-
-//   Future<void> _loadRemotePDF() async {
-//     setState(() {
-//       _pdfSource =
-//           'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf';
-//       _selectedSentence = null;
-//       _error = null;
-//     });
-//   }
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       appBar: AppBar(
-//         title: const Text('Interactive PDF Viewer Example'),
-//         actions: [
-//           IconButton(
-//             icon: const Icon(Icons.info),
-//             onPressed: () async {
-//               const url =
-//                   'https://github.com/bjorndonald/interactive_pdf_viewer';
-//               if (await canLaunchUrl(Uri.parse(url))) {
-//                 await launchUrl(Uri.parse(url));
-//               }
-//             },
-//           ),
-//         ],
-//       ),
-//       body: Column(
-//         children: [
-//           if (_error != null)
-//             Container(
-//               padding: const EdgeInsets.all(16),
-//               color: Colors.red.shade100,
-//               child: Text(_error!, style: const TextStyle(color: Colors.red)),
-//             ),
-//           if (_selectedSentence != null)
-//             Container(
-//               padding: const EdgeInsets.all(16),
-//               color: Colors.blue.shade100,
-//               child: Column(
-//                 crossAxisAlignment: CrossAxisAlignment.start,
-//                 children: [
-//                   const Text('Selected Sentence:',
-//                       style: TextStyle(fontWeight: FontWeight.bold)),
-//                   const SizedBox(height: 8),
-//                   Text(_selectedSentence!),
-//                 ],
-//               ),
-//             ),
-//           if (_totalPages != null)
-//             Padding(
-//               padding: const EdgeInsets.all(8.0),
-//               child: Text('Total Pages: $_totalPages'),
-//             ),
-//           Expanded(
-//             child: _pdfSource == null
-//                 ? const Center(
-//                     child: Text('Select a PDF to view'),
-//                   )
-//                 : PDFHighlighterView(
-//                     pdfController: pdfController,
-//                     ttsController: ttsController,
-//                     highlightColor: Colors.blue,
-//                     onTextSelected: (text) {
-//                       setState(() {
-//                         selectedText = text;
-//                       });
-//                     },
-//                   ),
-//                 // PDFReaderWithTTS(
-//                 //     pdfAssetPath: _pdfSource,
-//                 //     onSentenceTap: (sentence) {
-//                 //       setState(() {
-//                 //         _selectedSentence = sentence;
-//                 //       });
-//                 //     },
-//                 //     onPdfLoaded: (pages) {
-//                 //       setState(() {
-//                 //         _totalPages = pages;
-//                 //       });
-//                 //     },
-//                 //     // onError: (error) {
-//                 //     //   setState(() {
-//                 //     //     _error = 'Error loading PDF: $error';
-//                 //     //   });
-//                 //     // },
-//                 //     // enableTextSelection: true,
-//                 //     selectionColor: Colors.yellow.withOpacity(0.3),
-//                 //   ),
-//           ),
-//         ],
-//       ),
-//       bottomNavigationBar: BottomAppBar(
-//         height: 200,
-//         child: Padding(
-//             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-//             child: Column(
-//               crossAxisAlignment: CrossAxisAlignment.center,
-//               children: [
-//                 ElevatedButton.icon(
-//                   onPressed: _pickPDF,
-//                   icon: const Icon(Icons.file_upload),
-//                   label: const Text('Pick PDF'),
-//                 ),
-//                 Row(
-//                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-//                   children: [
-//                     ElevatedButton.icon(
-//                       onPressed: _loadSamplePDF,
-//                       icon: const Icon(Icons.description),
-//                       label: const Text('Sample PDF'),
-//                     ),
-//                     const SizedBox(width: 16),
-//                     ElevatedButton.icon(
-//                       onPressed: _loadRemotePDF,
-//                       icon: const Icon(Icons.cloud_download),
-//                       label: const Text('Remote PDF'),
-//                     ),
-//                   ],
-//                 ),
-//               ],
-//             )),
-//       ),
-//     );
-//   }
-// }
-
-class PDFHighlighterDemo extends StatefulWidget {
-  const PDFHighlighterDemo({Key? key}) : super(key: key);
-
-  @override
-  State<PDFHighlighterDemo> createState() => _PDFHighlighterDemoState();
-}
-
-class _PDFHighlighterDemoState extends State<PDFHighlighterDemo> {
-  late PDFController pdfController;
-  late TtsController ttsController;
-  String selectedText = '';
-  bool isPlaying = false;
+class _MyAppState extends State<MyApp> {
+  String _status = 'Idle';
+  bool _isLoading = false;
+  Timer? _sentenceTimer;
 
   @override
   void initState() {
     super.initState();
-    // Initialize with a sample PDF URL
-    pdfController = PDFController(
-      url:
-          'https://cdn.penguin.co.uk/dam-assets/books/9781847943750/9781847943750-sample.pdf',
-    );
-
-    ttsController = TtsController();
-    ttsController.ttsState.addListener(_updatePlayingState);
   }
 
-  void _updatePlayingState() {
+  @override
+  void dispose() {
+    _sentenceTimer?.cancel();
+    _sentenceTimer = null;
+    super.dispose();
+  }
+
+  // List of sample PDFs to demonstrate
+  final List<Map<String, String>> pdfSamples = [
+    {
+      'name': 'W3C Sample PDF',
+      'url':
+          'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+    },
+    {
+      'name': 'Sample PDF Document',
+      'url': 'https://www.africau.edu/images/default/sample.pdf',
+    },
+    {
+      'name': 'PDF Specification',
+      'url':
+          'https://opensource.adobe.com/dc-acrobat-sdk-docs/pdfstandards/PDF32000_2008.pdf',
+    },
+  ];
+
+  // Open PDF from a URL
+  Future<void> _openPDFFromUrl(String url) async {
+    if (!InteractivePdfViewer.isIOS) {
+      setState(() {
+        _status = 'This feature is only available on iOS devices';
+      });
+      return;
+    }
+
     setState(() {
-      isPlaying = ttsController.ttsState.value == TtsState.playing ||
-          ttsController.ttsState.value == TtsState.continued;
+      _isLoading = true;
+      _status = 'Downloading and opening PDF...';
+    });
+
+    try {
+      await InteractivePdfViewer.openPDFFromUrl(url);
+      setState(() {
+        _status = 'PDF opened successfully';
+      });
+    } on PlatformException catch (e) {
+      setState(() {
+        _status = 'Error: ${e.message}';
+      });
+    } catch (e) {
+      setState(() {
+        _status = 'Error: $e';
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+
+    _sentenceTimer?.cancel();
+    _sentenceTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+      try {
+        final sentences = await InteractivePdfViewer.getSentences();
+        if (sentences != null) {
+          setState(() {
+            print('Sentences: ${sentences.join(' ')}');
+          });
+        }
+      } catch (e) {
+        print('Error fetching sentences: $e');
+      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('PDF Highlighter Demo'),
-        actions: [
-          IconButton(
-            icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
-            onPressed: () {
-              if (isPlaying) {
-                ttsController.pause();
-              } else {
-                if (ttsController.ttsState.value == TtsState.paused) {
-                  ttsController.resume();
-                } else if (selectedText.isNotEmpty) {
-                  ttsController.speak(selectedText);
-                }
-              }
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.stop),
-            onPressed: () {
-              ttsController.stop();
-            },
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: PDFHighlighterView(
-              pdfController: pdfController,
-              ttsController: ttsController,
-              highlightColor: Colors.blue,
-              onTextSelected: (text) {
-                setState(() {
-                  selectedText = text;
-                });
-              },
-            ),
-          ),
-          if (selectedText.isNotEmpty)
-            Container(
-              padding: const EdgeInsets.all(16),
-              color: Colors.grey[200],
-              width: double.infinity,
-              child: Text(
-                selectedText,
+    return MaterialApp(
+      home: Scaffold(
+        appBar: AppBar(
+          title: const Text('Flutter iOS PDFKit Example'),
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (_isLoading)
+                const CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                )
+              else
+                const Icon(
+                  Icons.picture_as_pdf,
+                  size: 100,
+                  color: Colors.blue,
+                ),
+              const SizedBox(height: 20),
+              Text(
+                'Status: $_status',
+                textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 16),
               ),
-            ),
-        ],
+              const SizedBox(height: 40),
+              const Text(
+                'Sample PDFs:',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: pdfSamples.length,
+                  itemBuilder: (context, index) {
+                    final pdf = pdfSamples[index];
+                    return Card(
+                      margin: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      child: ListTile(
+                        leading: const Icon(Icons.picture_as_pdf),
+                        title: Text(pdf['name']!),
+                        subtitle: Text(
+                          pdf['url']!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        onTap: () => _openPDFFromUrl(pdf['url']!),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              if (!InteractivePdfViewer.isIOS)
+                Container(
+                  color: Colors.amber.shade100,
+                  padding: const EdgeInsets.all(10),
+                  margin: const EdgeInsets.all(16),
+                  child: const Text(
+                    'Note: This plugin only works on iOS 11.0+',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.black87),
+                  ),
+                ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        ),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    pdfController.dispose();
-    ttsController.dispose();
-    super.dispose();
   }
 }

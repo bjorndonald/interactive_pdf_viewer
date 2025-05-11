@@ -1,85 +1,170 @@
-# PDF Highlighter
+# Interactive PDF Viewer
 
-A Flutter package for highlighting text in PDFs with text-to-speech functionality.
+A Flutter plugin that provides interactive PDF viewing capabilities for iOS devices using PDFKit. This plugin allows you to view PDFs and extract text content from them.
 
 ## Features
 
-- Display PDF documents from file or URL
-- Tap to select and highlight sentences
-- Text-to-speech functionality to read selected text
-- Automatic navigation through sentences and pages
-- Customizable highlight colors
+- Open PDF files from local storage
+- Download and open PDFs from URLs
+- Open PDFs from Flutter assets
+- Extract text content from PDFs
+- iOS 11.0+ support using PDFKit
 
-## Getting Started
-
-### Installation
+## Installation
 
 Add this to your package's `pubspec.yaml` file:
 
-\`\`\`yaml
+```yaml
 dependencies:
-  pdf_highlighter: ^0.1.0
-\`\`\`
+  interactive_pdf_viewer: ^0.1.1  # Use the latest version
+```
 
-### Usage
+Then run:
+```bash
+flutter pub get
+```
+
+## Usage
+
+### Basic Setup
+
+First, ensure Flutter bindings are initialized:
+
+```dart
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(MyApp());
+}
+```
+
+### Opening PDFs
+
+#### From Local File
+```dart
+final success = await InteractivePdfViewer.openPDF('/path/to/your/file.pdf');
+```
+
+#### From URL
+```dart
+await InteractivePdfViewer.openPDFFromUrl(
+  'https://example.com/sample.pdf',
+  progressCallback: (progress) {
+    print('Download progress: $progress');
+  },
+);
+```
+
+#### From Assets
+```dart
+await InteractivePdfViewer.openPDFAsset('assets/sample.pdf');
+```
+
+### Extracting Text Content
+
+To extract text content from the currently open PDF:
+
+```dart
+// Get sentences periodically
+Timer.periodic(const Duration(seconds: 1), (timer) async {
+  try {
+    final sentences = await InteractivePdfViewer.getSentences();
+    print('Extracted sentences: ${sentences.join(' ')}');
+  } catch (e) {
+    print('Error fetching sentences: $e');
+  }
+});
+```
+
+### Platform Support
+
+The plugin currently only supports iOS devices. You can check platform support using:
+
+```dart
+if (InteractivePdfViewer.isIOS) {
+  // iOS-specific code
+} else {
+  // Handle unsupported platform
+}
+```
+
+## Example
+
+Here's a complete example of how to use the plugin:
 
 ```dart
 import 'package:flutter/material.dart';
-import 'package:pdf_highlighter/pdf_highlighter.dart';
+import 'package:interactive_pdf_viewer/v2/interactive_pdf_viewer.dart';
 
-void main() {
-  runApp(MyApp());
+class PDFViewerScreen extends StatefulWidget {
+  @override
+  _PDFViewerScreenState createState() => _PDFViewerScreenState();
 }
 
-class MyApp extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      home: PDFHighlighterDemo(),
-    );
+class _PDFViewerScreenState extends State<PDFViewerScreen> {
+  String _status = 'Idle';
+  bool _isLoading = false;
+
+  Future<void> _openPDFFromUrl(String url) async {
+    if (!InteractivePdfViewer.isIOS) {
+      setState(() => _status = 'This feature is only available on iOS devices');
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _status = 'Downloading and opening PDF...';
+    });
+
+    try {
+      await InteractivePdfViewer.openPDFFromUrl(url);
+      setState(() => _status = 'PDF opened successfully');
+    } catch (e) {
+      setState(() => _status = 'Error: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
-}
 
-class PDFHighlighterDemo extends StatefulWidget {
-  @override
-  _PDFHighlighterDemoState createState() => _PDFHighlighterDemoState();
-}
-
-class _PDFHighlighterDemoState extends State<PDFHighlighterDemo> {
-  late PDFController pdfController;
-  late TtsController ttsController;
-  
-  @override
-  void initState() {
-    super.initState();
-    pdfController = PDFController(
-      url: 'https://example.com/sample.pdf',
-      // Or use a local file:
-      // filePath: '/path/to/your/file.pdf',
-    );
-    
-    ttsController = TtsController();
-  }
-  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('PDF Highlighter')),
-      body: PDFHighlighterView(
-        pdfController: pdfController,
-        ttsController: ttsController,
-        highlightColor: Colors.blue,
-        onTextSelected: (text) {
-          print('Selected text: $text');
-        },
+      appBar: AppBar(title: Text('PDF Viewer')),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (_isLoading)
+              CircularProgressIndicator()
+            else
+              Icon(Icons.picture_as_pdf, size: 100),
+            Text('Status: $_status'),
+            ElevatedButton(
+              onPressed: () => _openPDFFromUrl('https://example.com/sample.pdf'),
+              child: Text('Open Sample PDF'),
+            ),
+          ],
+        ),
       ),
     );
   }
-  
-  @override
-  void dispose() {
-    pdfController.dispose();
-    ttsController.dispose();
-    super.dispose();
-  }
 }
+```
+
+## Requirements
+
+- iOS 11.0 or later
+- Flutter 2.0.0 or later
+
+## Limitations
+
+- Currently only supports iOS devices
+- Requires iOS 11.0 or later due to PDFKit dependency
+- Text extraction is limited to the currently visible content
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
