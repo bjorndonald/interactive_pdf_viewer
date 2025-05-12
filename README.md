@@ -16,7 +16,7 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  interactive_pdf_viewer: ^0.1.1  # Use the latest version
+  interactive_pdf_viewer: ^0.1.2  # Use the latest version
 ```
 
 Then run:
