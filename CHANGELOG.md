@@ -1,27 +1,39 @@
 # Changelog
 
-All notable changes to the interactive_pdf_viewer package will be documented in this file.
+All notable changes to the Interactive PDF Viewer plugin will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-## [Unreleased]
+## [0.1.0] - 2024-03-19
 
 ### Added
-- Initial release of the interactive PDF viewer package
-- Support for loading PDFs from various sources (URL, file system, assets, bytes)
-- Basic PDF viewing functionality with page navigation
-- Text selection capability with sentence-level granularity
-- Multi-selection mode (toggle with double tap)
-- Visual feedback for selected text blocks
-- Page navigation controls
-- Support for custom selection color
-- Disabled zooming on double-tap gestures to prevent conflicts with multi-selection mode
+- Initial release of Interactive PDF Viewer plugin
+- Support for iOS 13.0+ using PDFKit and SF Symbols
+- Basic PDF viewing capabilities:
+  - Open PDFs from local storage
+  - Open PDFs from URLs with progress tracking
+  - Open PDFs from Flutter assets
+- Interactive features:
+  - Single tap to select sentences
+  - Double tap to clear selections
+  - Visual highlighting of selected text
+  - Save button for selected sentences
+- UI Components:
+  - Custom close button (top left)
+  - Save button for selected sentences (top right)
+  - Full-screen PDF viewer
+- Method channel communication:
+  - `onSelectedSentencesChanged` callback for sentence selection
+  - `onSaveSelectedSentences` callback for save actions
+- Platform support:
+  - iOS 13.0+ support
+  - PDFKit integration
+  - SF Symbols for UI elements
 
-### Known Issues
-- Text highlighting currently covers the entire line rather than individual text
-- Text position information is approximated and may not be perfectly accurate
-- Native text selection features are not available on iOS devices
+### Known Limitations
+- iOS-only support
+- Requires iOS 13.0+ for PDFKit and SF Symbols
+- Text highlighting covers entire lines
+- Text position information is approximated
+- Native text selection features not available
 
 ### Future Improvements
 - Implement precise text highlighting instead of line-based highlighting
