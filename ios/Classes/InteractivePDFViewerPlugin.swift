@@ -6,10 +6,11 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin {
   var currentPage: PDFPage?
   var currentSentenceIndex: Int = 0
   var selectedSentence: String = ""
-  var selectedSentences: [String] = []
   var currentSentences: [String] = []
+  private var actionsChannel: FlutterMethodChannel?
 
   public static func register(with registrar: FlutterPluginRegistrar) {
+   
     let channel = FlutterMethodChannel(name: "interactive_pdf_viewer", binaryMessenger: registrar.messenger())
     let instance = InteractivePDFViewerPlugin()
     registrar.addMethodCallDelegate(instance, channel: channel)
@@ -27,8 +28,6 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin {
       }
       
       openPDF(filePath: filePath, result: result)
-    case "getSentences":
-      result(selectedSentences)
     default:
       result(FlutterMethodNotImplemented)
     }
@@ -70,20 +69,30 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin {
         pdfView.document = document
         pdfView.autoScales = true
         pdfView.addGestureRecognizer(self.tapGesture)
-          pdfView.addGestureRecognizer(self.doubleTapGesture)
+        pdfView.addGestureRecognizer(self.doubleTapGesture)
         
         // Create a view controller to present the PDF
         let pdfViewController = UIViewController()
         pdfViewController.view = pdfView
         pdfViewController.modalPresentationStyle = .fullScreen
         
-        // Add a close button
+        // Add close button with icon
         let closeButton = UIButton(type: .system)
-        closeButton.setTitle("Close", for: .normal)
-        closeButton.backgroundColor = UIColor(red: 0, green: 0.5, blue: 1.0, alpha: 1.0)
-        closeButton.setTitleColor(.white, for: .normal)
-        closeButton.layer.cornerRadius = 5
+        if let closeImage = UIImage(systemName: "xmark.circle.fill") {
+            closeButton.setImage(closeImage, for: .normal)
+        }
+        closeButton.tintColor = .systemBlue
         closeButton.addTarget(self, action: #selector(self.dismissPDFView(_:)), for: .touchUpInside)
+        
+        
+
+        // Add save quote button
+        let saveSelectedButton = UIButton(type: .system)
+        if let saveImage = UIImage(systemName: "square.and.arrow.down.fill") {
+            saveSelectedButton.setImage(saveImage, for: .normal)
+        }
+        saveSelectedButton.tintColor = .systemBlue
+        saveSelectedButton.addTarget(self, action: #selector(self.handleSaveSelectedButtonTap(_:)), for: .touchUpInside)
         
         // Store reference to view controller for dismissal
         objc_setAssociatedObject(closeButton, 
@@ -91,15 +100,28 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin {
                                 pdfViewController, 
                                 .OBJC_ASSOCIATION_RETAIN)
         
-        // Position close button
+        // Position buttons
         closeButton.translatesAutoresizingMaskIntoConstraints = false
+        
+        saveSelectedButton.translatesAutoresizingMaskIntoConstraints = false
         pdfView.addSubview(closeButton)
+        pdfView.addSubview(saveSelectedButton)
         
         NSLayoutConstraint.activate([
-          closeButton.topAnchor.constraint(equalTo: pdfView.safeAreaLayoutGuide.topAnchor, constant: 20),
-          closeButton.trailingAnchor.constraint(equalTo: pdfView.safeAreaLayoutGuide.trailingAnchor, constant: -20),
-          closeButton.widthAnchor.constraint(equalToConstant: 80),
-          closeButton.heightAnchor.constraint(equalToConstant: 40)
+            // Close button constraints (top left corner)
+            closeButton.topAnchor.constraint(equalTo: pdfView.safeAreaLayoutGuide.topAnchor, constant: 16),
+            closeButton.leadingAnchor.constraint(equalTo: pdfView.safeAreaLayoutGuide.leadingAnchor, constant: 16),
+            closeButton.widthAnchor.constraint(equalToConstant: 32),
+            closeButton.heightAnchor.constraint(equalToConstant: 32),
+            
+            // Quote button constraints (top right corner)
+            
+            
+            // Save quote button constraints (top right corner, next to quote button)
+            saveSelectedButton.topAnchor.constraint(equalTo: pdfView.safeAreaLayoutGuide.topAnchor, constant: 16),
+            saveSelectedButton.trailingAnchor.constraint(equalTo: pdfView.safeAreaLayoutGuide.trailingAnchor, constant: -16),
+            saveSelectedButton.widthAnchor.constraint(equalToConstant: 32),
+            saveSelectedButton.heightAnchor.constraint(equalToConstant: 32)
         ])
         
         // Present the PDF view controller
@@ -143,7 +165,6 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin {
         currentPage = page
         if let selectedSentence = selectSentence(at: location, on: page, in: pdfView) {
           self.selectedSentence = selectedSentence
-            self.selectedSentences.append(selectedSentence)
         } else {
           print("No sentence selected")
         }
@@ -179,6 +200,7 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin {
             self.currentSentenceIndex = index
             
             highlightSentence(selectedSentence)
+            handleSentenceSelectedButtonTap(selectedSentence)
             return selectedSentence + "."
         }
         print("No sentence found containing the word: \(tappedWord)")
@@ -256,6 +278,22 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin {
   @objc private func dismissPDFView(_ sender: UIButton) {
     if let viewController = objc_getAssociatedObject(sender, UnsafeRawPointer(bitPattern: 1)!) as? UIViewController {
       viewController.dismiss(animated: true, completion: nil)
+    }
+  }
+
+  func handleSentenceSelectedButtonTap(_ sentence: String) {
+    let controller = UIApplication.shared.delegate?.window??.rootViewController as? FlutterViewController
+    if let messenger = controller?.binaryMessenger {
+      let methodChannel = FlutterMethodChannel(name: "interactive_pdf_viewer", binaryMessenger: messenger)
+      methodChannel.invokeMethod("onSelect", arguments: sentence)
+    }
+  }
+
+  @objc private func handleSaveSelectedButtonTap(_ sender: UIButton) {
+    let controller = UIApplication.shared.delegate?.window??.rootViewController as? FlutterViewController
+    if let messenger = controller?.binaryMessenger {
+      let methodChannel = FlutterMethodChannel(name: "interactive_pdf_viewer", binaryMessenger: messenger)
+      methodChannel.invokeMethod("saveSelected", arguments: "")
     }
   }
 }

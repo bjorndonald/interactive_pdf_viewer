@@ -7,11 +7,38 @@ import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 
 class InteractivePdfViewer {
-  List<String> selectedSentences = [];
-  Timer? _sentenceTimer;
+  final Function(String)? onSelectedChanged;
+  final Function()? onSaveSelected;
 
   /// Method channel for communication with native code
   static const MethodChannel _channel = MethodChannel('interactive_pdf_viewer');
+
+  /// Creates a new instance of [InteractivePdfViewer]
+  ///
+  /// [onSelectedChanged] Optional callback for when selected sentences change
+  /// [onSaveSelected] Optional callback for when a Flutter action is triggered
+  InteractivePdfViewer({
+    this.onSelectedChanged,
+    this.onSaveSelected,
+  }) {
+    _channel.setMethodCallHandler(_handleMethodCall);
+  }
+
+  Future<dynamic> _handleMethodCall(MethodCall call) async {
+    switch (call.method) {
+      case 'saveSelected':
+        onSaveSelected?.call();
+        break;
+      case 'onSelect':
+        if (call.arguments is String) {
+          final sentence = call.arguments as String;
+          onSelectedChanged?.call(sentence);
+        }
+        break;
+      default:
+        throw MissingPluginException('No such method "${call.method}"');
+    }
+  }
 
   /// Opens a PDF file from a given file path
   ///
@@ -27,16 +54,7 @@ class InteractivePdfViewer {
 
   /// Stops the sentence fetching timer
   void dispose() {
-    _sentenceTimer?.cancel();
-    _sentenceTimer = null;
-  }
-
-  static Future<List<String>> getSentences() async {
-    final result = await _channel.invokeMethod('getSentences');
-    if (result is List) {
-      return result.map((item) => item?.toString() ?? '').toList();
-    }
-    return [];
+    _channel.setMethodCallHandler(null);
   }
 
   /// Downloads a PDF from a URL and opens it using PDFKit on iOS

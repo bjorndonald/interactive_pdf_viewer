@@ -20,10 +20,24 @@ class _MyAppState extends State<MyApp> {
   String _status = 'Idle';
   bool _isLoading = false;
   Timer? _sentenceTimer;
+  late final InteractivePdfViewer _interactivePdfViewer;
+
+  void _onSelectedSentencesChanged(String sentence) {
+    setState(() {
+      print('Selected sentence: ${sentence}');
+    });
+  }
+
+  void _onSaveSelectedSentences() {
+    print('Saving selected sentences...');
+  }
 
   @override
   void initState() {
     super.initState();
+    _interactivePdfViewer = InteractivePdfViewer(
+        onSaveSelected: _onSaveSelectedSentences,
+        onSelectedChanged: _onSelectedSentencesChanged);
   }
 
   @override
@@ -83,20 +97,6 @@ class _MyAppState extends State<MyApp> {
         _isLoading = false;
       });
     }
-
-    _sentenceTimer?.cancel();
-    _sentenceTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
-      try {
-        final sentences = await InteractivePdfViewer.getSentences();
-        if (sentences != null) {
-          setState(() {
-            print('Sentences: ${sentences.join(' ')}');
-          });
-        }
-      } catch (e) {
-        print('Error fetching sentences: $e');
-      }
-    });
   }
 
   @override

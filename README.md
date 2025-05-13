@@ -1,14 +1,29 @@
 # Interactive PDF Viewer
 
-A Flutter plugin that provides interactive PDF viewing capabilities for iOS devices using PDFKit. This plugin allows you to view PDFs and extract text content from them.
+A Flutter plugin that provides interactive PDF viewing capabilities for iOS devices using PDFKit. This plugin allows you to view PDFs, extract text content, and interact with the document through various gestures.
 
 ## Features
 
-- Open PDF files from local storage
-- Download and open PDFs from URLs
-- Open PDFs from Flutter assets
-- Extract text content from PDFs
-- iOS 11.0+ support using PDFKit
+- Open PDF files from multiple sources:
+  - Local storage
+  - URLs (with download progress tracking)
+  - Flutter assets
+- Interactive text selection:
+  - Tap to select sentences
+  - Double-tap to clear selections
+  - Visual highlighting of selected text
+  - Save selected sentences
+- Text extraction and processing:
+  - Extract text content from PDFs
+  - Real-time sentence selection
+  - Support for sentence-level text selection
+  - Automatic sentence tracking
+- User Interface:
+  - Native PDFKit viewer with full-screen support
+  - Custom close button (top left)
+  - Save button for selected sentences (top right)
+  - Page navigation controls
+- iOS 13.0+ support using PDFKit and SF Symbols
 
 ## Installation
 
@@ -16,7 +31,7 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  interactive_pdf_viewer: ^0.1.2  # Use the latest version
+  interactive_pdf_viewer: ^0.1.0  # Use the latest version
 ```
 
 Then run:
@@ -37,16 +52,34 @@ void main() {
 }
 ```
 
+### Creating a PDF Viewer Instance
+
+Create an instance of `InteractivePdfViewer` with optional callbacks:
+
+```dart
+final pdfViewer = InteractivePdfViewer(
+  // Called when a sentence is selected
+  onSelectedSentencesChanged: (sentence) {
+    print('Selected sentence: $sentence');
+  },
+  // Called when save button is pressed
+  onSaveSelectedSentences: () {
+    print('Save selected sentences triggered');
+    // Handle saving the selected sentences
+  },
+);
+```
+
 ### Opening PDFs
 
 #### From Local File
 ```dart
-final success = await InteractivePdfViewer.openPDF('/path/to/your/file.pdf');
+final success = await pdfViewer.openPDF('/path/to/your/file.pdf');
 ```
 
 #### From URL
 ```dart
-await InteractivePdfViewer.openPDFFromUrl(
+await pdfViewer.openPDFFromUrl(
   'https://example.com/sample.pdf',
   progressCallback: (progress) {
     print('Download progress: $progress');
@@ -56,23 +89,31 @@ await InteractivePdfViewer.openPDFFromUrl(
 
 #### From Assets
 ```dart
-await InteractivePdfViewer.openPDFAsset('assets/sample.pdf');
+await pdfViewer.openPDFAsset('assets/sample.pdf');
 ```
 
-### Extracting Text Content
+### Text Selection and Interaction
 
-To extract text content from the currently open PDF:
+The plugin provides several ways to interact with the PDF:
+
+1. **Single Tap**: Select a sentence at the tapped location
+2. **Double Tap**: Clear all selections
+3. **Save Button**: Trigger saving of selected sentences
+4. **Close Button**: Dismiss the PDF viewer
+
+To handle selected sentences and save actions:
 
 ```dart
-// Get sentences periodically
-Timer.periodic(const Duration(seconds: 1), (timer) async {
-  try {
-    final sentences = await InteractivePdfViewer.getSentences();
-    print('Extracted sentences: ${sentences.join(' ')}');
-  } catch (e) {
-    print('Error fetching sentences: $e');
-  }
-});
+final pdfViewer = InteractivePdfViewer(
+  onSelectedSentencesChanged: (sentence) {
+    // Handle selected sentence updates
+    print('Selected sentence: $sentence');
+  },
+  onSaveSelectedSentences: () {
+    // Handle saving the selected sentences
+    print('Save triggered for current sentence');
+  },
+);
 ```
 
 ### Platform Support
@@ -103,6 +144,37 @@ class PDFViewerScreen extends StatefulWidget {
 class _PDFViewerScreenState extends State<PDFViewerScreen> {
   String _status = 'Idle';
   bool _isLoading = false;
+  String? _selectedSentence;
+  late InteractivePdfViewer _pdfViewer;
+
+  @override
+  void initState() {
+    super.initState();
+    _pdfViewer = InteractivePdfViewer(
+      onSelectedSentencesChanged: (sentence) {
+        setState(() {
+          _selectedSentence = sentence;
+        });
+      },
+      onSaveSelectedSentences: () {
+        _saveSelectedSentence();
+      },
+    );
+  }
+
+  void _saveSelectedSentence() {
+    if (_selectedSentence != null) {
+      // Implement your save logic here
+      print('Saving sentence: $_selectedSentence');
+      // For example, save to a file or database
+    }
+  }
+
+  @override
+  void dispose() {
+    _pdfViewer.dispose();
+    super.dispose();
+  }
 
   Future<void> _openPDFFromUrl(String url) async {
     if (!InteractivePdfViewer.isIOS) {
@@ -116,7 +188,12 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
     });
 
     try {
-      await InteractivePdfViewer.openPDFFromUrl(url);
+      await _pdfViewer.openPDFFromUrl(
+        url,
+        progressCallback: (progress) {
+          setState(() => _status = 'Download progress: ${(progress * 100).toStringAsFixed(1)}%');
+        },
+      );
       setState(() => _status = 'PDF opened successfully');
     } catch (e) {
       setState(() => _status = 'Error: $e');
@@ -129,21 +206,51 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('PDF Viewer')),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (_isLoading)
-              CircularProgressIndicator()
-            else
-              Icon(Icons.picture_as_pdf, size: 100),
-            Text('Status: $_status'),
-            ElevatedButton(
-              onPressed: () => _openPDFFromUrl('https://example.com/sample.pdf'),
-              child: Text('Open Sample PDF'),
+      body: Column(
+        children: [
+          Expanded(
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (_isLoading)
+                    CircularProgressIndicator()
+                  else
+                    Icon(Icons.picture_as_pdf, size: 100),
+                  Text('Status: $_status'),
+                  ElevatedButton(
+                    onPressed: () => _openPDFFromUrl('https://example.com/sample.pdf'),
+                    child: Text('Open Sample PDF'),
+                  ),
+                ],
+              ),
             ),
-          ],
-        ),
+          ),
+          if (_selectedSentence != null)
+            Container(
+              padding: EdgeInsets.all(16),
+              color: Colors.grey[200],
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Selected Sentence:',
+                          style: Theme.of(context).textTheme.titleMedium),
+                      IconButton(
+                        icon: Icon(Icons.save),
+                        onPressed: _saveSelectedSentence,
+                        tooltip: 'Save selected sentence',
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 8),
+                  Text(_selectedSentence!),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -152,19 +259,22 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
 
 ## Requirements
 
-- iOS 11.0 or later
+- iOS 13.0 or later
 - Flutter 2.0.0 or later
+- Dart SDK 2.17.0 or later
 
-## Limitations
+## Known Limitations
 
 - Currently only supports iOS devices
-- Requires iOS 11.0 or later due to PDFKit dependency
-- Text extraction is limited to the currently visible content
+- Requires iOS 13.0 or later due to PDFKit and SF Symbols dependency
+- Text highlighting covers entire lines rather than individual text
+- Text position information is approximated
+- Native text selection features are not available
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
