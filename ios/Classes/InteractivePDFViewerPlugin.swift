@@ -8,6 +8,9 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin {
   var selectedSentence: String = ""
   var currentSentences: [String] = []
   private var actionsChannel: FlutterMethodChannel?
+  private var bottomToolbar: UIToolbar?
+  private var backButton: UIButton?
+  private weak var pdfView: PDFView?
 
   public static func register(with registrar: FlutterPluginRegistrar) {
    
@@ -33,11 +36,38 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin {
     }
   }
   
+  private func createCircularButton(title: String, symbol: String) -> UIView {
+    let containerView = UIView(frame: CGRect(x: 0, y: 0, width: 80, height: 100))
+    
+    // Create circular background
+    let circleView = UIView(frame: CGRect(x: 15, y: 0, width: 50, height: 50))
+    circleView.backgroundColor = UIColor(red: 0.95, green: 0.95, blue: 0.95, alpha: 1.0) // Light gray background
+    circleView.layer.cornerRadius = 25
+    containerView.addSubview(circleView)
+    
+    // Add button
+    let button = UIButton(frame: circleView.bounds)
+    let config = UIImage.SymbolConfiguration(pointSize: 20, weight: .regular)
+    let image = UIImage(systemName: symbol, withConfiguration: config)
+    button.setImage(image, for: .normal)
+    button.tintColor = .black
+    button.addTarget(self, action: Selector(("handle" + title.replacingOccurrences(of: " ", with: "") + "ButtonTap:")), for: .touchUpInside)
+    circleView.addSubview(button)
+    
+    // Add label
+    let label = UILabel(frame: CGRect(x: 0, y: 60, width: 80, height: 20))
+    label.text = title
+    label.textAlignment = .center
+    label.font = .systemFont(ofSize: 14)
+    label.textColor = .black
+    containerView.addSubview(label)
+    
+    return containerView
+  }
+
   private func openPDF(filePath: String, result: @escaping FlutterResult) {
-    // Create URL from file path
     let fileURL = URL(fileURLWithPath: filePath)
     
-    // Verify file exists
     guard FileManager.default.fileExists(atPath: filePath) else {
       result(FlutterError(code: "FILE_NOT_FOUND", 
         message: "The PDF file was not found at path: \(filePath)", 
@@ -45,9 +75,7 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin {
       return
     }
     
-    // Check if PDFKit is available (iOS 11+)
     if #available(iOS 11.0, *) {
-      // Verify file is a PDF
       guard let document = PDFDocument(url: fileURL) else {
         result(FlutterError(code: "INVALID_PDF", 
           message: "The file at \(filePath) is not a valid PDF", 
@@ -55,7 +83,6 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin {
         return
       }
       
-      // Get the root view controller
       DispatchQueue.main.async {
         guard let rootViewController = UIApplication.shared.windows.first?.rootViewController else {
           result(FlutterError(code: "NO_VIEWCONTROLLER", 
@@ -64,77 +91,117 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin {
           return
         }
         
-        // Create a PDF view
-        let pdfView = PDFView(frame: UIScreen.main.bounds)
+        // Create container view
+        let containerView = UIView(frame: UIScreen.main.bounds)
+        containerView.backgroundColor = .systemBackground
+        
+        // Add back button
+        let backButton = UIButton(frame: CGRect(x: 16, y: 44, width: 44, height: 44))
+        backButton.setImage(UIImage(systemName: "chevron.left"), for: .normal)
+        backButton.tintColor = .label
+        backButton.addTarget(self, action: #selector(self.dismissPDFView), for: .touchUpInside)
+        containerView.addSubview(backButton)
+        self.backButton = backButton
+        
+        // Add chapter title label
+        let titleLabel = UILabel(frame: CGRect(x: 0, y: 44, width: UIScreen.main.bounds.width, height: 44))
+        titleLabel.text = "Chapter 1"
+        titleLabel.textAlignment = .center
+        titleLabel.font = .systemFont(ofSize: 20, weight: .bold)
+        containerView.addSubview(titleLabel)
+        
+        // Create PDF view with adjusted frame to account for top and bottom bars
+        let pdfView = PDFView(frame: CGRect(x: 0,
+                                          y: 88,
+                                          width: UIScreen.main.bounds.width,
+                                          height: UIScreen.main.bounds.height - 176))
         pdfView.document = document
         pdfView.autoScales = true
+       
+        pdfView.usePageViewController(true)
+       
+        pdfView.backgroundColor = .systemBackground
+        
+        // Configure page layout
+       
+        pdfView.pageBreakMargins = UIEdgeInsets(top: 20, left: 0, bottom: 20, right: 0)
+        
         pdfView.addGestureRecognizer(self.tapGesture)
         pdfView.addGestureRecognizer(self.doubleTapGesture)
+        containerView.addSubview(pdfView)
+        self.pdfView = pdfView
         
-        // Create a view controller to present the PDF
+        // Create bottom container view
+        let bottomContainer = UIView(frame: CGRect(x: 0,
+                                                 y: UIScreen.main.bounds.height - 120,
+                                                 width: UIScreen.main.bounds.width,
+                                                 height: 120))
+        bottomContainer.backgroundColor = .white
+        
+        // Create buttons
+        let quoteButton = self.createCircularButton(title: "Quote", symbol: "text.quote")
+        let markAsDoneButton = self.createCircularButton(title: "Mark as Done", symbol: "checkmark")
+        let infoButton = self.createCircularButton(title: "Info", symbol: "info.circle")
+        let shareButton = self.createCircularButton(title: "Share", symbol: "square.and.arrow.up")
+        
+        // Calculate spacing and position buttons
+        let buttonWidth: CGFloat = 80
+        let totalButtons: CGFloat = 4
+        let spacing = (UIScreen.main.bounds.width - (buttonWidth * totalButtons)) / (totalButtons + 1)
+        
+        let buttons = [quoteButton, markAsDoneButton, infoButton, shareButton]
+        for (index, button) in buttons.enumerated() {
+          button.frame.origin.x = spacing + (buttonWidth + spacing) * CGFloat(index)
+          bottomContainer.addSubview(button)
+        }
+        
+        containerView.addSubview(bottomContainer)
+        
+        // Create and present view controller
         let pdfViewController = UIViewController()
-        pdfViewController.view = pdfView
+        pdfViewController.view = containerView
         pdfViewController.modalPresentationStyle = .fullScreen
         
-        // Add close button with icon
-        let closeButton = UIButton(type: .system)
-        if let closeImage = UIImage(systemName: "xmark.circle.fill") {
-            closeButton.setImage(closeImage, for: .normal)
-        }
-        closeButton.tintColor = .systemBlue
-        closeButton.addTarget(self, action: #selector(self.dismissPDFView(_:)), for: .touchUpInside)
-        
-        
-
-        // Add save quote button
-        let saveSelectedButton = UIButton(type: .system)
-        if let saveImage = UIImage(systemName: "square.and.arrow.down.fill") {
-            saveSelectedButton.setImage(saveImage, for: .normal)
-        }
-        saveSelectedButton.tintColor = .systemBlue
-        saveSelectedButton.addTarget(self, action: #selector(self.handleSaveSelectedButtonTap(_:)), for: .touchUpInside)
-        
-        // Store reference to view controller for dismissal
-        objc_setAssociatedObject(closeButton, 
-                                UnsafeRawPointer(bitPattern: 1)!, 
-                                pdfViewController, 
-                                .OBJC_ASSOCIATION_RETAIN)
-        
-        // Position buttons
-        closeButton.translatesAutoresizingMaskIntoConstraints = false
-        
-        saveSelectedButton.translatesAutoresizingMaskIntoConstraints = false
-        pdfView.addSubview(closeButton)
-        pdfView.addSubview(saveSelectedButton)
-        
-        NSLayoutConstraint.activate([
-            // Close button constraints (top left corner)
-            closeButton.topAnchor.constraint(equalTo: pdfView.safeAreaLayoutGuide.topAnchor, constant: 16),
-            closeButton.leadingAnchor.constraint(equalTo: pdfView.safeAreaLayoutGuide.leadingAnchor, constant: 16),
-            closeButton.widthAnchor.constraint(equalToConstant: 32),
-            closeButton.heightAnchor.constraint(equalToConstant: 32),
-            
-            // Quote button constraints (top right corner)
-            
-            
-            // Save quote button constraints (top right corner, next to quote button)
-            saveSelectedButton.topAnchor.constraint(equalTo: pdfView.safeAreaLayoutGuide.topAnchor, constant: 16),
-            saveSelectedButton.trailingAnchor.constraint(equalTo: pdfView.safeAreaLayoutGuide.trailingAnchor, constant: -16),
-            saveSelectedButton.widthAnchor.constraint(equalToConstant: 32),
-            saveSelectedButton.heightAnchor.constraint(equalToConstant: 32)
-        ])
-        
-        // Present the PDF view controller
         rootViewController.present(pdfViewController, animated: true, completion: nil)
         
         result(true)
       }
     } else {
-      // PDFKit is not available on this iOS version
       result(FlutterError(code: "UNSUPPORTED_IOS_VERSION", 
                          message: "PDFKit is only available on iOS 11 and above", 
                          details: nil))
     }
+  }
+
+  @objc private func dismissPDFView() {
+    UIApplication.shared.windows.first?.rootViewController?.dismiss(animated: true)
+  }
+  
+  @objc private func handleQuoteButtonTap(_ sender: UIButton) {
+    // Implementation for quote functionality
+    if let selectedText = getSelectedText() {
+      handleSentenceSelectedButtonTap(selectedText)
+    }
+  }
+  
+  private func getSelectedText() -> String? {
+    guard let pdfView = self.pdfView,
+          let selection = pdfView.currentSelection else {
+      return nil
+    }
+    return selection.string
+  }
+  
+  @objc private func handleMarkAsDoneButtonTap(_ sender: UIButton) {
+    
+  }
+  
+  @objc private func handleInfoButtonTap(_ sender: UIButton) {
+    
+  }
+  
+  @objc private func handleShareButtonTap(_ sender: UIButton) {
+    // Implementation for sharing
   }
 
     lazy var tapGesture: UITapGestureRecognizer = {
@@ -274,13 +341,6 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin {
       return tappedWordIndex.map { words[$0] }
     }
   
-  
-  @objc private func dismissPDFView(_ sender: UIButton) {
-    if let viewController = objc_getAssociatedObject(sender, UnsafeRawPointer(bitPattern: 1)!) as? UIViewController {
-      viewController.dismiss(animated: true, completion: nil)
-    }
-  }
-
   func handleSentenceSelectedButtonTap(_ sentence: String) {
     let controller = UIApplication.shared.delegate?.window??.rootViewController as? FlutterViewController
     if let messenger = controller?.binaryMessenger {
@@ -294,6 +354,23 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin {
     if let messenger = controller?.binaryMessenger {
       let methodChannel = FlutterMethodChannel(name: "interactive_pdf_viewer", binaryMessenger: messenger)
       methodChannel.invokeMethod("saveSelected", arguments: "")
+    }
+  }
+
+  @objc func handleSwipe(_ gesture: UISwipeGestureRecognizer) {
+    guard let pdfView = gesture.view as? PDFView,
+          let currentPage = pdfView.currentPage else { return }
+    
+    if gesture.direction == .right {
+        // Go to previous page
+        if let previousPage = pdfView.document?.page(at: pdfView.currentPage!.pageRef!.pageNumber - 1) {
+            pdfView.go(to: previousPage)
+        }
+    } else if gesture.direction == .left {
+        // Go to next page
+        if let nextPage = pdfView.document?.page(at: pdfView.currentPage!.pageRef!.pageNumber + 1) {
+            pdfView.go(to: nextPage)
+        }
     }
   }
 }

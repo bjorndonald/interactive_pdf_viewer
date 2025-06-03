@@ -24,7 +24,7 @@ class _MyAppState extends State<MyApp> {
 
   void _onSelectedSentencesChanged(String sentence) {
     setState(() {
-      print('Selected sentence: ${sentence}');
+      print('Selected sentence: $sentence');
     });
   }
 

@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'interactive_pdf_viewer'
-  s.version          = '0.1.0'
+  s.version          = '0.1.4'
   s.summary          = 'Flutter plugin for viewing PDFs using native iOS PDFKit.'
   s.description      = <<-DESC
 A Flutter plugin that allows viewing PDF files using the native iOS PDFKit framework.
