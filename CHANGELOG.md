@@ -2,6 +2,28 @@
 
 All notable changes to the Interactive PDF Viewer plugin will be documented in this file.
 
+## [0.2.0] - 2024-03-20
+
+### Added
+- Page tracking functionality:
+  - Real-time page change events
+  - Current page tracking
+  - Total pages information
+  - Smooth page transitions
+- Programmatic viewer control:
+  - Static `closePDF()` method for programmatic closing
+  - Error handling for viewer operations
+  - State management improvements
+- Documentation updates:
+  - Added examples for page tracking
+  - Added examples for programmatic control
+  - Updated API documentation
+
+### Changed
+- Made `closePDF()` method static for consistency
+- Improved error handling in method channel calls
+- Enhanced example application with page tracking UI
+
 ## [0.1.0] - 2024-03-19
 
 ### Added

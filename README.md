@@ -40,7 +40,7 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  interactive_pdf_viewer: ^0.1.0  # Use the latest version
+  interactive_pdf_viewer: ^0.2.0  # Use the latest version
 ```
 
 Then run:
