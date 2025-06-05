@@ -13,6 +13,15 @@ A Flutter plugin that provides interactive PDF viewing capabilities for iOS devi
   - Double-tap to clear selections
   - Visual highlighting of selected text
   - Save selected sentences
+- Page tracking and navigation:
+  - Real-time page change events
+  - Current page tracking
+  - Total pages information
+  - Smooth page transitions
+- Viewer Control:
+  - Programmatic opening and closing
+  - Manual close button
+  - Error handling and state management
 - Text extraction and processing:
   - Extract text content from PDFs
   - Real-time sentence selection
@@ -67,6 +76,11 @@ final pdfViewer = InteractivePdfViewer(
     print('Save selected sentences triggered');
     // Handle saving the selected sentences
   },
+  // Called when page changes
+  onPageChanged: (pageNumber, totalPages) {
+    print('Current page: $pageNumber of $totalPages');
+    // Handle page change
+  },
 );
 ```
 
@@ -74,13 +88,14 @@ final pdfViewer = InteractivePdfViewer(
 
 #### From Local File
 ```dart
-final success = await pdfViewer.openPDF('/path/to/your/file.pdf');
+final success = await pdfViewer.openPDF('/path/to/your/file.pdf', 'Document Title');
 ```
 
 #### From URL
 ```dart
 await pdfViewer.openPDFFromUrl(
   'https://example.com/sample.pdf',
+  'Document Title',
   progressCallback: (progress) {
     print('Download progress: $progress');
   },
@@ -89,8 +104,28 @@ await pdfViewer.openPDFFromUrl(
 
 #### From Assets
 ```dart
-await pdfViewer.openPDFAsset('assets/sample.pdf');
+await pdfViewer.openPDFAsset('assets/sample.pdf', 'Document Title');
 ```
+
+### Closing the PDF Viewer
+
+You can close the PDF viewer programmatically using the static `closePDF()` method:
+
+```dart
+// Close the PDF viewer programmatically
+final success = await InteractivePdfViewer.closePDF();
+if (success) {
+  print('PDF viewer closed successfully');
+} else {
+  print('Failed to close PDF viewer');
+}
+```
+
+This is useful in scenarios such as:
+- Navigating away from the current screen
+- Implementing a custom close button
+- Handling app lifecycle events
+- Implementing a timeout feature
 
 ### Text Selection and Interaction
 
@@ -100,8 +135,9 @@ The plugin provides several ways to interact with the PDF:
 2. **Double Tap**: Clear all selections
 3. **Save Button**: Trigger saving of selected sentences
 4. **Close Button**: Dismiss the PDF viewer
+5. **Swipe**: Navigate between pages
 
-To handle selected sentences and save actions:
+To handle selected sentences, page changes, and save actions:
 
 ```dart
 final pdfViewer = InteractivePdfViewer(
@@ -112,6 +148,10 @@ final pdfViewer = InteractivePdfViewer(
   onSaveSelectedSentences: () {
     // Handle saving the selected sentences
     print('Save triggered for current sentence');
+  },
+  onPageChanged: (pageNumber, totalPages) {
+    // Handle page changes
+    print('Current page: $pageNumber of $totalPages');
   },
 );
 ```
@@ -145,6 +185,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
   String _status = 'Idle';
   bool _isLoading = false;
   String? _selectedSentence;
+  int _currentPage = 1;
+  int _totalPages = 0;
   late InteractivePdfViewer _pdfViewer;
 
   @override
@@ -159,6 +201,12 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
       onSaveSelectedSentences: () {
         _saveSelectedSentence();
       },
+      onPageChanged: (pageNumber, totalPages) {
+        setState(() {
+          _currentPage = pageNumber;
+          _totalPages = totalPages;
+        });
+      },
     );
   }
 
@@ -167,6 +215,19 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
       // Implement your save logic here
       print('Saving sentence: $_selectedSentence');
       // For example, save to a file or database
+    }
+  }
+
+  Future<void> _closePDFViewer() async {
+    final success = await InteractivePdfViewer.closePDF();
+    if (success) {
+      setState(() {
+        _status = 'PDF viewer closed';
+      });
+    } else {
+      setState(() {
+        _status = 'Failed to close PDF viewer';
+      });
     }
   }
 
@@ -190,6 +251,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
     try {
       await _pdfViewer.openPDFFromUrl(
         url,
+        'Sample Document',
         progressCallback: (progress) {
           setState(() => _status = 'Download progress: ${(progress * 100).toStringAsFixed(1)}%');
         },
@@ -205,7 +267,21 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('PDF Viewer')),
+      appBar: AppBar(
+        title: Text('PDF Viewer'),
+        actions: [
+          if (_totalPages > 0)
+            Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  'Page $_currentPage of $_totalPages',
+                  style: TextStyle(fontSize: 16),
+                ),
+              ),
+            ),
+        ],
+      ),
       body: Column(
         children: [
           Expanded(
@@ -222,6 +298,11 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                     onPressed: () => _openPDFFromUrl('https://example.com/sample.pdf'),
                     child: Text('Open Sample PDF'),
                   ),
+                  if (_totalPages > 0)
+                    ElevatedButton(
+                      onPressed: _closePDFViewer,
+                      child: Text('Close PDF'),
+                    ),
                 ],
               ),
             ),

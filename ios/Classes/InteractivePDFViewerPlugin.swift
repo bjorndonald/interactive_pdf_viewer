@@ -2,7 +2,7 @@ import Flutter
 import UIKit
 import PDFKit
 
-public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin {
+public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin, PDFViewDelegate {
   var currentPage: PDFPage?
   var currentSentenceIndex: Int = 0
   var selectedSentence: String = ""
@@ -11,11 +11,13 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin {
   private var bottomToolbar: UIToolbar?
   private var backButton: UIButton?
   private weak var pdfView: PDFView?
+  private var highlightOnTap: Bool = false
+  private var currentPageNumber: Int = 1
 
   public static func register(with registrar: FlutterPluginRegistrar) {
-   
     let channel = FlutterMethodChannel(name: "interactive_pdf_viewer", binaryMessenger: registrar.messenger())
     let instance = InteractivePDFViewerPlugin()
+    instance.actionsChannel = channel
     registrar.addMethodCallDelegate(instance, channel: channel)
   }
   
@@ -23,14 +25,20 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin {
     switch call.method {
     case "openPDF":
       guard let args = call.arguments as? [String: Any],
-            let filePath = args["filePath"] as? String else {
+            let filePath = args["filePath"] as? String,
+            let title = args["title"] as? String else {
         result(FlutterError(code: "INVALID_ARGUMENTS", 
-          message: "Missing or invalid filePath argument", 
+          message: "Missing or invalid arguments", 
           details: nil))
         return
       }
       
-      openPDF(filePath: filePath, result: result)
+      // Get optional highlight parameter
+      self.highlightOnTap = args["highlightOnTap"] as? Bool ?? false
+      
+      openPDF(filePath: filePath, title: title, result: result)
+    case "closePDF":
+      closePDFViewer(result: result)
     default:
       result(FlutterMethodNotImplemented)
     }
@@ -51,7 +59,21 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin {
     let image = UIImage(systemName: symbol, withConfiguration: config)
     button.setImage(image, for: .normal)
     button.tintColor = .black
-    button.addTarget(self, action: Selector(("handle" + title.replacingOccurrences(of: " ", with: "") + "ButtonTap:")), for: .touchUpInside)
+    
+    // Set the correct selector based on the button type
+    switch title {
+    case "Quote":
+        button.addTarget(self, action: #selector(handleQuoteButtonTap(_:)), for: .touchUpInside)
+    case "Done":
+        button.addTarget(self, action: #selector(handleMarkAsDoneButtonTap(_:)), for: .touchUpInside)
+    case "Info":
+        button.addTarget(self, action: #selector(handleInfoButtonTap(_:)), for: .touchUpInside)
+    case "Share":
+        button.addTarget(self, action: #selector(handleShareButtonTap(_:)), for: .touchUpInside)
+    default:
+        break
+    }
+    
     circleView.addSubview(button)
     
     // Add label
@@ -65,7 +87,7 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin {
     return containerView
   }
 
-  private func openPDF(filePath: String, result: @escaping FlutterResult) {
+  private func openPDF(filePath: String, title: String, result: @escaping FlutterResult) {
     let fileURL = URL(fileURLWithPath: filePath)
     
     guard FileManager.default.fileExists(atPath: filePath) else {
@@ -105,7 +127,7 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin {
         
         // Add chapter title label
         let titleLabel = UILabel(frame: CGRect(x: 0, y: 44, width: UIScreen.main.bounds.width, height: 44))
-        titleLabel.text = "Chapter 1"
+        titleLabel.text = title
         titleLabel.textAlignment = .center
         titleLabel.font = .systemFont(ofSize: 20, weight: .bold)
         containerView.addSubview(titleLabel)
@@ -117,19 +139,42 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin {
                                           height: UIScreen.main.bounds.height - 176))
         pdfView.document = document
         pdfView.autoScales = true
-       
+        pdfView.maxScaleFactor = 4.0  // Maximum zoom level
+        pdfView.minScaleFactor = 0.5  // Minimum zoom level
         pdfView.usePageViewController(true)
-       
         pdfView.backgroundColor = .systemBackground
+        pdfView.pageShadowsEnabled = false
+        pdfView.delegate = self 
+         // Set the delegate
+
+         // Register for page change notifications
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(self.pageChanged(_:)),
+            name: .PDFViewPageChanged,
+            object: pdfView
+        )
         
-        // Configure page layout
-       
-        pdfView.pageBreakMargins = UIEdgeInsets(top: 20, left: 0, bottom: 20, right: 0)
+        // Send initial page number
+        if let firstPage = document.page(at: 0) {
+            self.currentPage = firstPage
+            self.currentPageNumber = 1
+            // self.notifyPageChange(1)
+        }
         
-        pdfView.addGestureRecognizer(self.tapGesture)
+        // Add zoom gesture
+        let pinchGesture = UIPinchGestureRecognizer(target: self, action: #selector(self.handlePinch(_:)))
+        pdfView.addGestureRecognizer(pinchGesture)
+        
+        // Only add tap gesture if highlighting is enabled
+        if self.highlightOnTap {
+            pdfView.addGestureRecognizer(self.tapGesture)
+        }
+        
         pdfView.addGestureRecognizer(self.doubleTapGesture)
         containerView.addSubview(pdfView)
         self.pdfView = pdfView
+        
         
         // Create bottom container view
         let bottomContainer = UIView(frame: CGRect(x: 0,
@@ -140,7 +185,7 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin {
         
         // Create buttons
         let quoteButton = self.createCircularButton(title: "Quote", symbol: "text.quote")
-        let markAsDoneButton = self.createCircularButton(title: "Mark as Done", symbol: "checkmark")
+        let markAsDoneButton = self.createCircularButton(title: "Done", symbol: "checkmark")
         let infoButton = self.createCircularButton(title: "Info", symbol: "info.circle")
         let shareButton = self.createCircularButton(title: "Share", symbol: "square.and.arrow.up")
         
@@ -173,14 +218,31 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin {
     }
   }
 
+  @objc private func pageChanged(_ notification: Notification) {
+        guard let pdfView = notification.object as? PDFView,
+              let currentPage = pdfView.currentPage else { return }
+        
+        let pageIndex = pdfView.document?.index(for: currentPage) ?? 0
+        print("Page changed to: \(pageIndex + 1)")
+        
+        // Handle page change logic here
+        notifyPageChange(pageIndex + 1)
+    }
+
   @objc private func dismissPDFView() {
     UIApplication.shared.windows.first?.rootViewController?.dismiss(animated: true)
   }
   
   @objc private func handleQuoteButtonTap(_ sender: UIButton) {
     // Implementation for quote functionality
-    if let selectedText = getSelectedText() {
-      handleSentenceSelectedButtonTap(selectedText)
+   
+    if !highlightOnTap {
+      if let selectedText = getSelectedText() {
+        handleSentenceSelectedButtonTap(selectedText)
+      }
+    }
+    else if !self.selectedSentence.isEmpty {
+      handleSentenceSelectedButtonTap(self.selectedSentence)
     }
   }
   
@@ -192,16 +254,32 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin {
     return selection.string
   }
   
+  
+
   @objc private func handleMarkAsDoneButtonTap(_ sender: UIButton) {
-    
+    guard let pdfView = self.pdfView,
+          let currentPage = pdfView.currentPage else {
+        return
+    }
+    let pageNumber = pdfView.document?.index(for: currentPage) ?? 0
+    let arguments: [String: Any] = ["pageNumber": pageNumber + 1]
+
+    self.actionsChannel?.invokeMethod("markChapterAsDone", arguments: arguments)
   }
   
   @objc private func handleInfoButtonTap(_ sender: UIButton) {
-    
+    self.actionsChannel?.invokeMethod("infoButton", arguments: nil)
   }
   
   @objc private func handleShareButtonTap(_ sender: UIButton) {
+    guard let pdfView = self.pdfView,
+          let currentPage = pdfView.currentPage else {
+        return
+    }
+    let pageNumber = pdfView.document?.index(for: currentPage) ?? 0
+    let arguments: [String: Any] = ["pageNumber": pageNumber + 1]
     // Implementation for sharing
+    self.actionsChannel?.invokeMethod("shareButton", arguments: arguments)
   }
 
     lazy var tapGesture: UITapGestureRecognizer = {
@@ -217,43 +295,63 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin {
         }()
     
     @objc func handleDoubleTap(_ gesture: UITapGestureRecognizer) {
-        guard let page = currentPage else { return }
+        guard let pdfView = gesture.view as? PDFView else { return }
         
-        let annotations = page.annotations
-        for annotation in annotations {
-            page.removeAnnotation(annotation)
+        // Reset zoom on double tap
+        UIView.animate(withDuration: 0.3) {
+            pdfView.scaleFactor = 1.0
+        }
+        
+        // Clear highlights if any
+        if let page = currentPage {
+            let annotations = page.annotations
+            for annotation in annotations {
+                page.removeAnnotation(annotation)
+            }
         }
     }
 
     @objc func handleTap(_ gesture: UITapGestureRecognizer) {
-      guard let pdfView = gesture.view as? PDFView else { return }
-      let location = gesture.location(in: pdfView)
-      if let page = pdfView.page(for: location, nearest: true) {
-        currentPage = page
-        if let selectedSentence = selectSentence(at: location, on: page, in: pdfView) {
-          self.selectedSentence = selectedSentence
+        guard self.highlightOnTap,
+              let pdfView = gesture.view as? PDFView else { return }
+              
+        let location = gesture.location(in: pdfView)
+        if let page = pdfView.page(for: location, nearest: true) {
+            currentPage = page
+            if let selectedSentence = selectSentence(at: location, on: page, in: pdfView) {
+               
+                self.selectedSentence = selectedSentence
+                highlightSentence(selectedSentence)
+            } else {
+               
+            }
         } else {
-          print("No sentence selected")
+           
         }
-      } else {
-        print("No page found at tap location")
-      }
+    }
+
+    @objc func handlePinch(_ gesture: UIPinchGestureRecognizer) {
+        guard let pdfView = gesture.view as? PDFView else { return }
+        
+        if gesture.state == .began {
+            gesture.scale = pdfView.scaleFactor
+        } else if gesture.state == .changed {
+            let scale = gesture.scale
+            pdfView.scaleFactor = min(max(scale, pdfView.minScaleFactor), pdfView.maxScaleFactor)
+        }
     }
 
     func selectSentence(at location: CGPoint, on page: PDFPage, in pdfView: PDFView) -> String? {
       let pdfPoint = pdfView.convert(location, to: page)
                                 
       guard let pageContent = page.string else {
-        print("Could not get page content")
+        
         return nil
       }
       // Improved word selection
       guard let tappedWord = getWordAt(point: pdfPoint, on: page, in: pageContent) else {
-        print("No word found at tap location")
         return nil
       }
-
-      print("Tapped word: \(tappedWord)")
 
       // Split content into sentences
       let sentences = pageContent.components(separatedBy: CharacterSet(charactersIn: ".!?"))
@@ -263,24 +361,25 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin {
         currentSentences = sentences
         if let index = sentences.firstIndex(where: { $0.contains(tappedWord) }) {
             let selectedSentence = sentences[index]
-            print("Found sentence: \(selectedSentence)")
             self.currentSentenceIndex = index
             
             highlightSentence(selectedSentence)
-            handleSentenceSelectedButtonTap(selectedSentence)
+            self.selectedSentence = selectedSentence
             return selectedSentence + "."
         }
-        print("No sentence found containing the word: \(tappedWord)")
-        return tappedWord
+       return tappedWord
 
     }
 
     func highlightSentence(_ selectedSentence: String) {
       guard let page = currentPage else { return }
       let annotations = page.annotations
+
+      for annotation in annotations {
+        page.removeAnnotation(annotation)
+      }
       
       if let selections = page.document?.findString(selectedSentence){
-        print("Number of selections: \(selections.count)")
                 
         if(selections.count > 0){
           let lines = selections[0].selectionsByLine()
@@ -296,17 +395,14 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin {
 
     func getWordAt(point: CGPoint, on page: PDFPage, in pageContent: String) -> String? {
       let wordRange = 20
-      print("Word range: \(point)")
       
       // Get character index and validate it
       let rawCharacterIndex = page.characterIndex(at: point)
       guard rawCharacterIndex >= 0 && rawCharacterIndex < pageContent.count else {
-          print("Invalid character index: \(rawCharacterIndex)")
           return nil
       }
       
       let characterIndex = Int64(rawCharacterIndex)
-      print("Character index: \(characterIndex)")
       
       // Safely calculate start and end indices with bounds checking
       let startIndex: Int
@@ -323,7 +419,6 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin {
       } else {
           endIndex = pageContent.count
       }
-      print("Start index: \(pageContent.count)")
       let start = pageContent.index(pageContent.startIndex, offsetBy: startIndex)
       let end = pageContent.index(pageContent.startIndex, offsetBy: endIndex)
       let searchString = String(pageContent[start..<end])
@@ -342,35 +437,73 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin {
     }
   
   func handleSentenceSelectedButtonTap(_ sentence: String) {
-    let controller = UIApplication.shared.delegate?.window??.rootViewController as? FlutterViewController
-    if let messenger = controller?.binaryMessenger {
-      let methodChannel = FlutterMethodChannel(name: "interactive_pdf_viewer", binaryMessenger: messenger)
-      methodChannel.invokeMethod("onSelect", arguments: sentence)
+    guard let pdfView = self.pdfView,
+          let currentPage = pdfView.currentPage else {
+        return
     }
-  }
-
-  @objc private func handleSaveSelectedButtonTap(_ sender: UIButton) {
-    let controller = UIApplication.shared.delegate?.window??.rootViewController as? FlutterViewController
-    if let messenger = controller?.binaryMessenger {
-      let methodChannel = FlutterMethodChannel(name: "interactive_pdf_viewer", binaryMessenger: messenger)
-      methodChannel.invokeMethod("saveSelected", arguments: "")
-    }
-  }
-
-  @objc func handleSwipe(_ gesture: UISwipeGestureRecognizer) {
-    guard let pdfView = gesture.view as? PDFView,
-          let currentPage = pdfView.currentPage else { return }
     
-    if gesture.direction == .right {
-        // Go to previous page
-        if let previousPage = pdfView.document?.page(at: pdfView.currentPage!.pageRef!.pageNumber - 1) {
-            pdfView.go(to: previousPage)
-        }
-    } else if gesture.direction == .left {
-        // Go to next page
-        if let nextPage = pdfView.document?.page(at: pdfView.currentPage!.pageRef!.pageNumber + 1) {
-            pdfView.go(to: nextPage)
-        }
+    // Get the current page number
+    let pageNumber = currentPage.pageRef?.pageNumber ?? 0
+    
+    // Create a dictionary with all the information
+    let arguments: [String: Any] = [
+        "text": sentence,
+        "pageNumber": pageNumber,
+        "location": [
+            "x": currentPage.bounds(for: .mediaBox).midX,
+            "y": currentPage.bounds(for: .mediaBox).midY
+        ]
+    ]
+
+    self.actionsChannel?.invokeMethod("quote", arguments: arguments)
+  }
+
+  // Add these new methods for PDFViewDelegate
+  public func pdfViewPageChanged(_ pdfView: PDFView) {
+    print("pdfViewPageChanged: \(pdfView.currentPage?.pageRef?.pageNumber ?? 0)")
+    self.currentPage = pdfView.currentPage
+    handlePageChange(pdfView)
+  }
+  
+  public func pdfView(_ pdfView: PDFView, didGoToPage page: PDFPage) {
+    print("didGoToPage: \(page.pageRef?.pageNumber ?? 0)")
+    self.currentPage = page
+    handlePageChange(pdfView)
+  }
+  
+  private func handlePageChange(_ pdfView: PDFView) {
+    print("handlePageChange")
+    guard let currentPage = pdfView.currentPage,
+          let document = pdfView.document else { return }
+    print("handlePageChange: \(currentPage.pageRef?.pageNumber ?? 0)")
+    let pageNumber = document.index(for: currentPage) + 1
+    if pageNumber != currentPageNumber {
+        currentPageNumber = pageNumber
+        notifyPageChange(pageNumber)
     }
   }
+  
+  private func notifyPageChange(_ pageNumber: Int) {
+    let arguments: [String: Any] = [
+        "pageNumber": pageNumber,
+        "totalPages": pdfView?.document?.pageCount ?? 0
+    ]
+    self.actionsChannel?.invokeMethod("onPageChanged", arguments: arguments)
+  }
+
+  private func closePDFViewer(result: @escaping FlutterResult) {
+    DispatchQueue.main.async {
+      if let rootViewController = UIApplication.shared.windows.first?.rootViewController,
+         rootViewController.presentedViewController != nil {
+        rootViewController.dismiss(animated: true) {
+          result(true)
+        }
+      } else {
+        result(FlutterError(code: "NO_PDF_VIEWER",
+                           message: "No PDF viewer is currently open",
+                           details: nil))
+      }
+    }
+  }
+
 }

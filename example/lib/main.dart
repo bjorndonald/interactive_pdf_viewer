@@ -28,16 +28,37 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
-  void _onSaveSelectedSentences() {
-    print('Saving selected sentences...');
+  void _onQuote(
+      String sentence, int pageNumber, Map<String, dynamic> location) {
+    print('Quote: $sentence, Page: $pageNumber, Location: $location');
+  }
+
+  void _onMarkChapterAsDone(int pageNumber) {
+    print('Marking chapter as done: $pageNumber');
+  }
+
+  void _onInfoButton() {
+    print('Info button pressed');
+  }
+
+  void _onShareButton() {
+    print('Share button pressed');
+  }
+
+  void _onPageChanged(int pageNumber, int totalPages) {
+    print('Page changed: $pageNumber/$totalPages');
   }
 
   @override
   void initState() {
     super.initState();
     _interactivePdfViewer = InteractivePdfViewer(
-        onSaveSelected: _onSaveSelectedSentences,
-        onSelectedChanged: _onSelectedSentencesChanged);
+      onQuote: _onQuote,
+      onMarkChapterAsDone: _onMarkChapterAsDone,
+      onInfoButton: _onInfoButton,
+      onShareButton: _onShareButton,
+      onPageChanged: _onPageChanged,
+    );
   }
 
   @override
@@ -45,6 +66,15 @@ class _MyAppState extends State<MyApp> {
     _sentenceTimer?.cancel();
     _sentenceTimer = null;
     super.dispose();
+  }
+
+  Future<void> closePDF() async {
+    try {
+      final success = await InteractivePdfViewer.closePDF();
+      print('PDF closed: $success');
+    } catch (e) {
+      print('Error closing PDF: $e');
+    }
   }
 
   // List of sample PDFs to demonstrate
@@ -66,7 +96,7 @@ class _MyAppState extends State<MyApp> {
   ];
 
   // Open PDF from a URL
-  Future<void> _openPDFFromUrl(String url) async {
+  Future<void> _openPDFFromUrl(String url, String title) async {
     if (!InteractivePdfViewer.isIOS) {
       setState(() {
         _status = 'This feature is only available on iOS devices';
@@ -80,7 +110,7 @@ class _MyAppState extends State<MyApp> {
     });
 
     try {
-      await InteractivePdfViewer.openPDFFromUrl(url);
+      await InteractivePdfViewer.openPDFFromUrl(url, title);
       setState(() {
         _status = 'PDF opened successfully';
       });
@@ -148,7 +178,7 @@ class _MyAppState extends State<MyApp> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        onTap: () => _openPDFFromUrl(pdf['url']!),
+                        onTap: () => _openPDFFromUrl(pdf['url']!, pdf['name']!),
                       ),
                     );
                   },
