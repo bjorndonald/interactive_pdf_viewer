@@ -1,6 +1,66 @@
 # Changelog
 
-All notable changes to the Interactive PDF Viewer plugin will be documented in this file.
+## 0.2.6 - 2024-03-22
+* Enhanced UI behavior:
+  * Automatic minimization when using quote, share, or info buttons
+  * Improved user experience with seamless transitions
+  * Better screen space management
+  * Consistent minimization behavior across all actions
+
+## 0.2.5 - 2024-03-22
+* Added minimizable PDF viewer functionality:
+  * Floating minimized view with rounded corners
+  * Progress bar showing reading progress
+  * Title and page number display
+  * Expand and close buttons
+  * Customizable position and appearance
+* Enhanced quote management:
+  * New `removeQuote` method for removing specific quotes
+  * Improved quote highlighting and unhighlighting
+  * Better quote text matching
+* Updated UI elements:
+  * Changed back button to close icon
+  * Updated minimize/maximize icons to carets
+  * Improved button positioning and layout
+  * Enhanced visual feedback
+
+## 0.2.3 - 2024-03-21
+* Fixed Swift compiler error related to CGRect bounds calculation
+* Removed quote-management from package topics to better reflect current features
+* Documentation updates and clarifications
+
+## 0.2.2 - Unreleased
+* Removed Linux platform support to fix build issues
+* Clarified iOS-only implementation in documentation
+* Added customizable text highlighting options:
+  * Enable/disable highlighting of quoted text
+  * Custom highlight color support using hex values
+  * New `openPDFWithOptions` method for highlighting configuration
+* Replaced "Mark as Done" feature with "Clear All Quotes":
+  * New clear button to remove all quotes from the document
+  * Added `onClearAllQuotes` callback for handling quote clearing
+  * Updated UI with new trash icon for clear functionality
+* Added support for opening PDFs at specific pages:
+  * New `initialPage` parameter for all PDF opening methods
+  * Ability to resume reading from last viewed page
+  * Smooth page transitions when opening at specific pages
+* Added support for pre-existing quotes:
+  * New `PDFQuote` class for structured quote data
+  * Ability to pre-highlight existing quotes when opening PDFs
+  * Support for quote location information
+  * Available in all PDF opening methods
+* Enhanced quote management:
+  * Individual quote removal by tapping on highlights
+  * Dynamic UI updates (Clear button changes to Remove)
+  * New `onQuoteRemoved` callback for tracking removals
+  * Improved highlight interaction and feedback
+
+## 0.2.1
+* Initial release with iOS support
+* Interactive PDF viewing capabilities using PDFKit
+* Text selection and extraction features
+* Page tracking and navigation
+* Support for loading PDFs from various sources
 
 ## [0.2.0] - 2024-03-20
 

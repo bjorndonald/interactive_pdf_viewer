@@ -20,7 +20,9 @@ class _MyAppState extends State<MyApp> {
   String _status = 'Idle';
   bool _isLoading = false;
   Timer? _sentenceTimer;
+  int _initialPage = 5;
   late final InteractivePdfViewer _interactivePdfViewer;
+  List<PDFQuote> _existingQuotes = [];
 
   void _onSelectedSentencesChanged(String sentence) {
     setState(() {
@@ -28,13 +30,18 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
-  void _onQuote(
-      String sentence, int pageNumber, Map<String, dynamic> location) {
+  void _onQuote(String sentence, int pageNumber, dynamic location) {
     print('Quote: $sentence, Page: $pageNumber, Location: $location');
+    setState(() {
+      _existingQuotes.add(PDFQuote(text: sentence, pageNumber: pageNumber));
+    });
   }
 
-  void _onMarkChapterAsDone(int pageNumber) {
-    print('Marking chapter as done: $pageNumber');
+  void _onClearAllQuotes() {
+    print('Clearing all quotes');
+    setState(() {
+      _existingQuotes = [];
+    });
   }
 
   void _onInfoButton() {
@@ -47,6 +54,9 @@ class _MyAppState extends State<MyApp> {
 
   void _onPageChanged(int pageNumber, int totalPages) {
     print('Page changed: $pageNumber/$totalPages');
+    setState(() {
+      _initialPage = pageNumber;
+    });
   }
 
   @override
@@ -54,10 +64,12 @@ class _MyAppState extends State<MyApp> {
     super.initState();
     _interactivePdfViewer = InteractivePdfViewer(
       onQuote: _onQuote,
-      onMarkChapterAsDone: _onMarkChapterAsDone,
+      onClearAllQuotes: _onClearAllQuotes,
       onInfoButton: _onInfoButton,
       onShareButton: _onShareButton,
       onPageChanged: _onPageChanged,
+      shouldHighlightQuotes: true,
+      highlightColor: '#FFEB3B',
     );
   }
 
@@ -110,7 +122,8 @@ class _MyAppState extends State<MyApp> {
     });
 
     try {
-      await InteractivePdfViewer.openPDFFromUrl(url, title);
+      await _interactivePdfViewer.openPDFFromUrl(url, title,
+          initialPage: _initialPage, existingQuotes: _existingQuotes);
       setState(() {
         _status = 'PDF opened successfully';
       });
@@ -155,6 +168,11 @@ class _MyAppState extends State<MyApp> {
                 'Status: $_status',
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () => print('Open PDF'),
+                child: const Text('Open PDF'),
               ),
               const SizedBox(height: 40),
               const Text(

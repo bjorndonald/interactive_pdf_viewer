@@ -1,6 +1,8 @@
 # Interactive PDF Viewer
 
-A Flutter plugin that provides interactive PDF viewing capabilities for iOS devices using PDFKit. This plugin allows you to view PDFs, extract text content, and interact with the document through various gestures.
+A Flutter plugin that provides interactive PDF viewing capabilities for iOS devices using PDFKit. This plugin allows you to view PDFs, extract text content, manage quotes, and interact with the document through various gestures.
+
+> **Important Note**: This plugin currently supports iOS devices only. Android and other platforms are not supported at this time.
 
 ## Features
 
@@ -8,19 +10,32 @@ A Flutter plugin that provides interactive PDF viewing capabilities for iOS devi
   - Local storage
   - URLs (with download progress tracking)
   - Flutter assets
-- Interactive text selection:
+- Interactive text selection and quote management:
   - Tap to select sentences
   - Double-tap to clear selections
   - Visual highlighting of selected text
-  - Save selected sentences
+  - Customizable highlight colors
+  - Individual quote removal
+  - Clear all quotes with a single tap
+  - Pre-existing quote support
+  - Quote location tracking
+- Minimizable viewer interface:
+  - Floating minimized view
+  - Progress bar showing reading progress
+  - Title and page number display
+  - Expand and close buttons
+  - Customizable position
+  - Rounded corners and shadows
+  - Automatic minimization on quote, share, and info actions
 - Page tracking and navigation:
   - Real-time page change events
   - Current page tracking
   - Total pages information
+  - Last page recall
   - Smooth page transitions
 - Viewer Control:
   - Programmatic opening and closing
-  - Manual close button
+  - Quote removal API
   - Error handling and state management
 - Text extraction and processing:
   - Extract text content from PDFs
@@ -29,10 +44,31 @@ A Flutter plugin that provides interactive PDF viewing capabilities for iOS devi
   - Automatic sentence tracking
 - User Interface:
   - Native PDFKit viewer with full-screen support
-  - Custom close button (top left)
-  - Save button for selected sentences (top right)
+  - Modern iOS-style controls
+  - Quote management buttons
+  - Info and Share buttons
   - Page navigation controls
 - iOS 13.0+ support using PDFKit and SF Symbols
+
+## Platform Support
+
+This plugin is designed exclusively for iOS using native PDFKit functionality:
+
+- ✅ iOS 13.0 or later
+- ❌ Android (not supported)
+- ❌ Web (not supported)
+- ❌ macOS (not supported)
+- ❌ Windows (not supported)
+
+You can check platform support in your code using:
+
+```dart
+if (InteractivePdfViewer.isIOS) {
+  // iOS-specific code
+} else {
+  // Handle unsupported platform
+}
+```
 
 ## Installation
 
@@ -40,7 +76,7 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  interactive_pdf_viewer: ^0.2.0  # Use the latest version
+  interactive_pdf_viewer: ^0.2.3  # Use the latest version
 ```
 
 Then run:
@@ -63,7 +99,7 @@ void main() {
 
 ### Creating a PDF Viewer Instance
 
-Create an instance of `InteractivePdfViewer` with optional callbacks:
+Create an instance of `InteractivePdfViewer` with optional callbacks and highlighting options:
 
 ```dart
 final pdfViewer = InteractivePdfViewer(
@@ -71,16 +107,23 @@ final pdfViewer = InteractivePdfViewer(
   onSelectedSentencesChanged: (sentence) {
     print('Selected sentence: $sentence');
   },
-  // Called when save button is pressed
-  onSaveSelectedSentences: () {
-    print('Save selected sentences triggered');
-    // Handle saving the selected sentences
+  // Called when a sentence is quoted
+  onQuote: (text, pageNumber, location) {
+    print('Quoted text: $text on page $pageNumber');
+  },
+  // Called when all quotes are cleared
+  onClearAllQuotes: () {
+    print('All quotes have been cleared');
+    // Handle clearing quotes in your app's state
   },
   // Called when page changes
   onPageChanged: (pageNumber, totalPages) {
     print('Current page: $pageNumber of $totalPages');
     // Handle page change
   },
+  // Highlighting options
+  shouldHighlightQuotes: true, // Enable/disable highlighting of quoted text
+  highlightColor: '#FFEB3B', // Custom highlight color in hex format
 );
 ```
 
@@ -88,14 +131,24 @@ final pdfViewer = InteractivePdfViewer(
 
 #### From Local File
 ```dart
+// Open PDF at the first page
 final success = await pdfViewer.openPDF('/path/to/your/file.pdf', 'Document Title');
+
+// Open PDF at a specific page
+final success = await pdfViewer.openPDF(
+  '/path/to/your/file.pdf',
+  'Document Title',
+  initialPage: 5  // Opens the PDF at page 5
+);
 ```
 
 #### From URL
 ```dart
+// Open PDF from URL at a specific page
 await pdfViewer.openPDFFromUrl(
   'https://example.com/sample.pdf',
   'Document Title',
+  initialPage: 3,  // Opens the PDF at page 3
   progressCallback: (progress) {
     print('Download progress: $progress');
   },
@@ -104,8 +157,58 @@ await pdfViewer.openPDFFromUrl(
 
 #### From Assets
 ```dart
-await pdfViewer.openPDFAsset('assets/sample.pdf', 'Document Title');
+// Open PDF asset at a specific page
+await pdfViewer.openPDFAsset(
+  'assets/sample.pdf',
+  'Document Title',
+  initialPage: 2  // Opens the PDF at page 2
+);
 ```
+
+### Opening PDFs with Existing Quotes
+
+You can open PDFs with pre-existing quotes that will be highlighted automatically:
+
+```dart
+// Create a list of existing quotes
+final existingQuotes = [
+  PDFQuote(
+    text: "This is an important quote",
+    pageNumber: 1,
+    location: {"x": 100, "y": 200},
+  ),
+  PDFQuote(
+    text: "Another highlighted quote",
+    pageNumber: 3,
+  ),
+];
+
+// Open PDF with existing quotes and last viewed page
+await pdfViewer.openPDFWithOptions(
+  '/path/to/your/file.pdf',
+  'Document Title',
+  initialPage: lastViewedPage,  // Resume from last viewed page
+  existingQuotes: existingQuotes,  // Pre-highlight these quotes
+);
+```
+
+### Opening PDFs with Custom Highlighting
+
+You can open PDFs with custom highlighting options and specify the initial page:
+
+```dart
+// Open PDF with custom highlighting at a specific page
+await pdfViewer.openPDFWithOptions(
+  '/path/to/your/file.pdf',
+  'Document Title',
+  initialPage: 10  // Opens the PDF at page 10
+);
+```
+
+The options available include:
+- Enable/disable highlighting of quoted text using `shouldHighlightQuotes`
+- Customize the highlight color using `highlightColor` (in hex format, e.g., '#FFEB3B')
+- Specify the initial page to open using `initialPage` (defaults to 1)
 
 ### Closing the PDF Viewer
 
@@ -156,19 +259,7 @@ final pdfViewer = InteractivePdfViewer(
 );
 ```
 
-### Platform Support
-
-The plugin currently only supports iOS devices. You can check platform support using:
-
-```dart
-if (InteractivePdfViewer.isIOS) {
-  // iOS-specific code
-} else {
-  // Handle unsupported platform
-}
-```
-
-## Example
+### Example
 
 Here's a complete example of how to use the plugin:
 
@@ -359,3 +450,66 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+### Handling Quotes and Highlights
+
+The plugin provides comprehensive quote management capabilities:
+
+```dart
+final pdfViewer = InteractivePdfViewer(
+  // Called when a new quote is created
+  onQuote: (text, pageNumber, location) {
+    print('New quote: $text on page $pageNumber');
+  },
+  
+  // Called when a specific quote is removed
+  onQuoteRemoved: (text, pageNumber) {
+    print('Quote removed: $text from page $pageNumber');
+  },
+  
+  // Called when all quotes are cleared
+  onClearAllQuotes: () {
+    print('All quotes have been cleared');
+  },
+);
+```
+
+#### Quote Interaction Features
+1. **Creating Quotes**: 
+   - Tap on text to select and quote it
+   - Quotes are automatically highlighted
+   - Location information is tracked
+2. **Managing Quotes**:
+   - Tap on a highlighted quote to select it
+   - Remove individual quotes using the Remove button
+   - Clear all quotes at once with the Clear button
+   - Pre-load existing quotes when opening PDFs
+3. **Quote Storage**:
+   - Save quotes with page numbers and locations
+   - Track removed quotes through callbacks
+   - Manage quote state in your application
+4. **UI Feedback**:
+   - Dynamic button updates based on context
+   - Visual highlight feedback
+   - Smooth transitions between states
+
+### Minimizable Viewer
+
+The PDF viewer can be minimized to a floating bar:
+
+```dart
+// The viewer will automatically show minimize/maximize buttons
+final pdfViewer = InteractivePdfViewer(
+  onPageChanged: (pageNumber, totalPages) {
+    // Progress is automatically shown in minimized view
+    print('Reading progress: $pageNumber/$totalPages');
+  },
+);
+```
+
+The minimized view includes:
+- Current document title
+- Page progress (e.g., "5/20")
+- Progress bar showing reading position
+- Expand button to restore full view
+- Close button to exit viewer

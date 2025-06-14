@@ -1,6 +1,6 @@
 name: interactive_pdf_viewer
-description: A Flutter package for displaying PDFs with interactive features including text selection, page tracking, programmatic control, and sentence extraction capabilities.
-version: 0.2.0
+description: A Flutter package for displaying PDFs with interactive features including text selection, page tracking, quote management, minimizable viewer, and custom UI controls. Features include individual quote removal, floating minimized view, and programmatic control.
+version: 0.2.7
 homepage: https://github.com/bjorndonald/interactive_pdf_viewer
 repository: https://github.com/bjorndonald/interactive_pdf_viewer.git
 issue_tracker: https://github.com/bjorndonald/interactive_pdf_viewer/issues
@@ -37,13 +37,13 @@ topics:
   - pdf
   - interactive
   - text-selection
-  - viewer-control
+  - minimizable
   - flutter
 
 screenshots:
-  - description: Interactive PDF Viewer with text selection and page tracking
+  - description: Interactive PDF Viewer with minimizable interface and quote management
     path: assets/screenshots/screenshot_1.png
-  - description: PDF Viewer with navigation and control features
+  - description: PDF Viewer with floating minimized view and controls
     path: assets/screenshots/screenshot_2.png
 
 # Documentation
@@ -59,6 +59,5 @@ platforms:
   web:
   windows:
   macos:
-  linux:
 
 

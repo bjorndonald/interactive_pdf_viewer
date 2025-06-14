@@ -13,7 +13,7 @@ dependencies:
   interactive_pdf_viewer:
     path: ../
   cupertino_icons: ^1.0.2
-  file_picker: ^6.1.1
+  file_picker: 9.0.0
   url_launcher: ^6.2.4
 
 dev_dependencies:
