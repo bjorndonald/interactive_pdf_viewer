@@ -6,7 +6,7 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin, PDFViewDelegat
   private var actionsChannel: FlutterMethodChannel?
   private weak var pdfView: PDFView?
   private var pdfViewController: UIViewController?
-  // private var overlayWindow: UIWindow? // Removed: No longer using a separate overlay window
+  private var overlayWindow: UIWindow? // New: Separate window for minimized view
   private var isMinimized: Bool = false
   private var originalFrame: CGRect = .zero
   private var minimizedFrame: CGRect = .zero
@@ -126,8 +126,6 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin, PDFViewDelegat
         topViewController.present(pdfViewController, animated: true) {
             // Setup UI after presentation to get correct safe area
             self.setupUIComponents(containerView: containerView, title: title, document: document, initialPage: initialPage)
-            // Initialize the minimized view here, but keep it hidden
-            self.setupMinimizedView()
         }
     }
   
@@ -138,11 +136,9 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin, PDFViewDelegat
     let minimizedHeight: CGFloat = 80
     let padding: CGFloat = 16
     
-    // Account for safe area insets if applicable, though for a floating view,
-    // positioning relative to screen bounds with padding is often sufficient.
     self.minimizedFrame = CGRect(
       x: screenBounds.width - minimizedWidth - padding,
-      y: screenBounds.height - minimizedHeight - padding - 100, // Account for safe area / bottom bar
+      y: screenBounds.height - minimizedHeight - padding - 100, // Account for safe area
       width: minimizedWidth,
       height: minimizedHeight
     )
@@ -255,82 +251,102 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin, PDFViewDelegat
     headerView.addGestureRecognizer(panGesture)
   }
   
-  // NEW: Create and add minimized view to the main application's window
-  private func setupMinimizedView() {
-      guard let appWindow = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-            let rootViewControllerView = appWindow.windows.first?.rootViewController?.view else { return }
-      
-      // Ensure minimizedFrame is set up before using it
-      setupMinimizedFrame()
-
-      // Create minimized container if it doesn't exist
-      if minimizedContainer == nil {
-          minimizedContainer = UIView(frame: minimizedFrame)
-          minimizedContainer?.backgroundColor = .systemBackground
-          minimizedContainer?.layer.cornerRadius = 12
-          minimizedContainer?.layer.shadowColor = UIColor.black.cgColor
-          minimizedContainer?.layer.shadowOffset = CGSize(width: 0, height: 2)
-          minimizedContainer?.layer.shadowRadius = 8
-          minimizedContainer?.layer.shadowOpacity = 0.3
-          minimizedContainer?.layer.borderWidth = 1
-          minimizedContainer?.layer.borderColor = UIColor.systemGray4.cgColor
-          rootViewControllerView.addSubview(minimizedContainer!) // Add to the main app's root view
-          
-          // Minimize/Maximize button (left side)
-          let minimizedMinimizeButton = UIButton(frame: CGRect(x: 8, y: 8, width: 32, height: 32))
-          minimizedMinimizeButton.setTitle("□", for: .normal)
-          minimizedMinimizeButton.setTitleColor(.systemBlue, for: .normal)
-          minimizedMinimizeButton.titleLabel?.font = .systemFont(ofSize: 16, weight: .bold)
-          minimizedMinimizeButton.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.1)
-          minimizedMinimizeButton.layer.cornerRadius = 16
-          minimizedMinimizeButton.addTarget(self, action: #selector(handleMinimizeButtonTap), for: .touchUpInside)
-          minimizedContainer?.addSubview(minimizedMinimizeButton)
-          self.minimizedMinimizeButton = minimizedMinimizeButton
-          
-          // Close button (right side)
-          let minimizedCloseButton = UIButton(frame: CGRect(x: 260, y: 8, width: 32, height: 32))
-          minimizedCloseButton.setTitle("✕", for: .normal)
-          minimizedCloseButton.setTitleColor(.systemRed, for: .normal)
-          minimizedCloseButton.titleLabel?.font = .systemFont(ofSize: 14, weight: .bold)
-          minimizedCloseButton.backgroundColor = UIColor.systemRed.withAlphaComponent(0.1)
-          minimizedCloseButton.layer.cornerRadius = 16
-          minimizedCloseButton.addTarget(self, action: #selector(dismissPDFView), for: .touchUpInside)
-          minimizedContainer?.addSubview(minimizedCloseButton)
-          self.minimizedCloseButton = minimizedCloseButton
-          
-          // Title label
-          let minimizedTitleLabel = UILabel(frame: CGRect(x: 48, y: 12, width: 204, height: 20))
-          minimizedTitleLabel.text = pdfTitle
-          minimizedTitleLabel.font = .systemFont(ofSize: 14, weight: .medium)
-          minimizedTitleLabel.textColor = .label
-          minimizedTitleLabel.textAlignment = .center
-          minimizedContainer?.addSubview(minimizedTitleLabel)
-          self.minimizedTitleLabel = minimizedTitleLabel
-          
-          // Progress view
-          let minimizedProgressView = UIProgressView(frame: CGRect(x: 48, y: 48, width: 204, height: 4))
-          minimizedProgressView.progressTintColor = .systemBlue
-          minimizedProgressView.trackTintColor = .systemGray4
-          minimizedProgressView.layer.cornerRadius = 2
-          minimizedProgressView.clipsToBounds = true
-          minimizedContainer?.addSubview(minimizedProgressView)
-          self.minimizedProgressView = minimizedProgressView
-          
-          // Update progress
-          updateProgress()
-          
-          // Add tap gesture to minimized container for maximizing
-          let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleMinimizedTap))
-          minimizedContainer?.addGestureRecognizer(tapGesture)
-          
-          // Add pan gesture to minimized container for dragging
-          let panGesture = UIPanGestureRecognizer(target: self, action: #selector(handleMinimizedPan(_:)))
-          minimizedContainer?.addGestureRecognizer(panGesture)
-      }
-      // Initially hide it, it will be shown during minimizeModal
-      minimizedContainer?.isHidden = true
+  // NEW: Create overlay window for minimized view
+  private func createOverlayWindow() {
+    guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene else { return }
+    
+    // Create new window for overlay
+    overlayWindow = UIWindow(windowScene: windowScene)
+    overlayWindow?.windowLevel = UIWindow.Level.alert + 1
+    overlayWindow?.backgroundColor = .clear
+    overlayWindow?.isHidden = false
+    
+    // Create a transparent root view controller
+    let overlayViewController = UIViewController()
+    overlayViewController.view.backgroundColor = .clear
+    overlayWindow?.rootViewController = overlayViewController
+    
+    // Create minimized container
+    setupMinimizedViewInOverlay()
   }
     
+    // This function should be called ONLY once, when the minimized container is first created
+    // And it should ideally be called when setting up the overlay window.
+    private func setupMinimizedViewInOverlay() {
+        guard let overlayWindow = overlayWindow,
+              let rootView = overlayWindow.rootViewController?.view else { return }
+        
+        // Ensure minimizedFrame is set up before using it
+        setupMinimizedFrame()
+
+        // Create minimized container if it doesn't exist
+        if minimizedContainer == nil {
+            minimizedContainer = UIView(frame: minimizedFrame)
+            minimizedContainer?.backgroundColor = .systemBackground
+            minimizedContainer?.layer.cornerRadius = 12
+            minimizedContainer?.layer.shadowColor = UIColor.black.cgColor
+            minimizedContainer?.layer.shadowOffset = CGSize(width: 0, height: 2)
+            minimizedContainer?.layer.shadowRadius = 8
+            minimizedContainer?.layer.shadowOpacity = 0.3
+            minimizedContainer?.layer.borderWidth = 1
+            minimizedContainer?.layer.borderColor = UIColor.systemGray4.cgColor
+            rootView.addSubview(minimizedContainer!) // Force unwrap because we just checked nil
+            
+            // Minimize/Maximize button (left side)
+            let minimizedMinimizeButton = UIButton(frame: CGRect(x: 8, y: 8, width: 32, height: 32))
+            minimizedMinimizeButton.setTitle("□", for: .normal)
+            minimizedMinimizeButton.setTitleColor(.systemBlue, for: .normal)
+            minimizedMinimizeButton.titleLabel?.font = .systemFont(ofSize: 16, weight: .bold)
+            minimizedMinimizeButton.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.1)
+            minimizedMinimizeButton.layer.cornerRadius = 16
+            minimizedMinimizeButton.addTarget(self, action: #selector(handleMinimizeButtonTap), for: .touchUpInside)
+            minimizedContainer?.addSubview(minimizedMinimizeButton)
+            self.minimizedMinimizeButton = minimizedMinimizeButton
+            
+            // Close button (right side)
+            let minimizedCloseButton = UIButton(frame: CGRect(x: 260, y: 8, width: 32, height: 32))
+            minimizedCloseButton.setTitle("✕", for: .normal)
+            minimizedCloseButton.setTitleColor(.systemRed, for: .normal)
+            minimizedCloseButton.titleLabel?.font = .systemFont(ofSize: 14, weight: .bold)
+            minimizedCloseButton.backgroundColor = UIColor.systemRed.withAlphaComponent(0.1)
+            minimizedCloseButton.layer.cornerRadius = 16
+            minimizedCloseButton.addTarget(self, action: #selector(dismissPDFView), for: .touchUpInside)
+            minimizedContainer?.addSubview(minimizedCloseButton)
+            self.minimizedCloseButton = minimizedCloseButton
+            
+            // Title label
+            let minimizedTitleLabel = UILabel(frame: CGRect(x: 48, y: 12, width: 204, height: 20))
+            minimizedTitleLabel.text = pdfTitle
+            minimizedTitleLabel.font = .systemFont(ofSize: 14, weight: .medium)
+            minimizedTitleLabel.textColor = .label
+            minimizedTitleLabel.textAlignment = .center
+            minimizedContainer?.addSubview(minimizedTitleLabel)
+            self.minimizedTitleLabel = minimizedTitleLabel
+            
+            // Progress view
+            let minimizedProgressView = UIProgressView(frame: CGRect(x: 48, y: 48, width: 204, height: 4))
+            minimizedProgressView.progressTintColor = .systemBlue
+            minimizedProgressView.trackTintColor = .systemGray4
+            minimizedProgressView.layer.cornerRadius = 2
+            minimizedProgressView.clipsToBounds = true
+            minimizedContainer?.addSubview(minimizedProgressView)
+            self.minimizedProgressView = minimizedProgressView
+            
+            // Update progress
+            updateProgress()
+            
+            // Add tap gesture to minimized container for maximizing
+            let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleMinimizedTap))
+            minimizedContainer?.addGestureRecognizer(tapGesture)
+            
+            // Add pan gesture to minimized container for dragging
+            let panGesture = UIPanGestureRecognizer(target: self, action: #selector(handleMinimizedPan(_:)))
+            minimizedContainer?.addGestureRecognizer(panGesture)
+        }
+        // Initially hide it, it will be shown during minimizeModal
+        minimizedContainer?.isHidden = true
+    }
+  
   private func updateProgress() {
     let progress = Float(currentPageNumber) / Float(totalPages)
     minimizedProgressView?.setProgress(progress, animated: true)
@@ -385,7 +401,7 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin, PDFViewDelegat
       
       // Keep Y within bounds
       let minY = containerBounds.height / 2 + 50 // Account for status bar
-      let maxY = screenBounds.height - containerBounds.width / 2 - 100 // Adjusted for typical bottom bar
+      let maxY = screenBounds.height - containerBounds.height / 2 - 100 // Account for bottom safe area
       let clampedY = max(minY, min(maxY, centerY))
       
       // Animate to snap position
@@ -509,10 +525,12 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin, PDFViewDelegat
   }
   
   @objc private func dismissPDFView() {
-    // Ensure minimized container is removed if it's currently visible
+    // Clean up overlay window first
     if isMinimized {
-        minimizedContainer?.removeFromSuperview()
-        minimizedContainer = nil
+      overlayWindow?.isHidden = true
+      overlayWindow = nil
+      minimizedContainer?.removeFromSuperview() // Remove from superview when dismissing
+      minimizedContainer = nil
     }
     
     // Dismiss the main PDF view controller
@@ -571,14 +589,19 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin, PDFViewDelegat
             pdfVC.view.transform = CGAffineTransform(scaleX: 0.8, y: 0.8) // Optional: scale it down slightly
         } completion: { _ in
             pdfVC.view.isHidden = true // Fully hide after animation
-            // Ensure the minimized view is properly setup and added to the main window's hierarchy
-            self.setupMinimizedView() // Call this to ensure it's in the hierarchy if not already
-            self.minimizedContainer?.isHidden = false // Show the minimized view
-            // Snap to the default minimized position or last known drag position if available
-            UIView.animate(withDuration: 0.4, delay: 0, usingSpringWithDamping: 0.8, initialSpringVelocity: 0.5, options: []) {
-                self.minimizedContainer?.frame = self.minimizedFrame // Use the calculated minimized frame
-                self.minimizedContainer?.alpha = 1 // Ensure it's fully visible
-            }
+        }
+        
+        // 2. Create and show the overlay window if it doesn't exist
+        if overlayWindow == nil {
+            createOverlayWindow()
+        }
+        
+        // 3. Position and show the minimized container in the overlay window
+        minimizedContainer?.isHidden = false
+        // Snap to the default minimized position or last known drag position if available
+        UIView.animate(withDuration: 0.4, delay: 0, usingSpringWithDamping: 0.8, initialSpringVelocity: 0.5, options: []) {
+            self.minimizedContainer?.frame = self.minimizedFrame // Use the calculated minimized frame
+            self.minimizedContainer?.alpha = 1 // Ensure it's fully visible
         }
         
         isMinimized = true
@@ -604,13 +627,12 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin, PDFViewDelegat
     private func maximizeModal() {
         guard let pdfVC = pdfViewController else { return }
         
-        // 1. Hide the minimized container
+        // 1. Hide the minimized container and the overlay window
         UIView.animate(withDuration: 0.4, delay: 0, usingSpringWithDamping: 0.8, initialSpringVelocity: 0.5, options: []) {
             self.minimizedContainer?.alpha = 0
         } completion: { _ in
             self.minimizedContainer?.isHidden = true
-            // Optionally remove from superview if it's only meant to exist when minimized
-            // self.minimizedContainer?.removeFromSuperview()
+            self.overlayWindow?.isHidden = true // Hide the entire overlay window
         }
         
         // 2. Show and restore the full-screen PDF view controller's view
@@ -625,9 +647,11 @@ public class InteractivePDFViewerPlugin: NSObject, FlutterPlugin, PDFViewDelegat
   
   private func closePDFViewer(result: @escaping FlutterResult) {
     DispatchQueue.main.async {
-      // Clean up minimized container if it exists
-      if self.minimizedContainer != nil {
-        self.minimizedContainer?.removeFromSuperview()
+      // Clean up overlay window first
+      if self.isMinimized {
+        self.overlayWindow?.isHidden = true
+        self.overlayWindow = nil
+        self.minimizedContainer?.removeFromSuperview() // Remove from superview when dismissing
         self.minimizedContainer = nil
       }
       
