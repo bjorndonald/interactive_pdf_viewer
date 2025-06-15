@@ -123,4 +123,17 @@
 - Improve text position accuracy
 - Add support for text search functionality
 - Implement text copying to clipboard
-- Add support for annotations and comments 
+- Add support for annotations and comments
+
+## [0.2.8] - 2024-03-19
+
+### Added
+- Automatic closing of existing PDF viewer when opening a new PDF
+- Improved resource management and cleanup
+
+### Fixed
+- Potential memory leaks from multiple PDF viewers
+- UI conflicts when opening multiple PDFs
+
+## [0.2.7] - Previous version
+// ... existing code ... 

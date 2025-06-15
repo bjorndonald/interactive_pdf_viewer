@@ -142,6 +142,8 @@ final success = await pdfViewer.openPDF(
 );
 ```
 
+> **Note**: When opening a new PDF, any existing PDF viewer will be automatically closed to ensure a clean state and prevent resource conflicts.
+
 #### From URL
 ```dart
 // Open PDF from URL at a specific page
